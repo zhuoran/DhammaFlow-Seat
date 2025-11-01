@@ -4,9 +4,6 @@
 ![Build](https://img.shields.io/badge/build-passing-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-
-
-
 > 一个为禅修中心设计的智能学员房间分配管理系统
 
 ## 📚 文档导航
