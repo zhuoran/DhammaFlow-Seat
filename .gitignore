@@ -1,0 +1,10 @@
+.idea
+.vscode/
+.cursor/
+memory-bank/
+.claude/
+.gemini/
+.temp/
+.codex
+.specify
+.m2/

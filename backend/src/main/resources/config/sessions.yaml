@@ -1,0 +1,55 @@
+# 课程会期配置文件
+# 用于本地开发和测试时的课程会期信息配置
+
+sessions:
+  - id: 1
+    center_id: 1
+    session_code: "ZZ-2025-10-16"
+    course_type: "十日课程"
+    start_date: "2025-10-16"
+    end_date: "2025-10-26"
+    expected_students: 100
+    status: "PLANNING"
+    notes: "十日禅修课程"
+    meditation_halls:
+      - region_code: "A"
+        region_name: "禅堂A区"
+        region_width: 4
+        auto_rows: true
+        numbering_type: "SEQUENTIAL"
+        seat_prefix: "A"
+        gender_type: "mixed"
+
+      - region_code: "B"
+        region_name: "禅堂B区"
+        region_width: 10
+        auto_rows: true
+        numbering_type: "SEQUENTIAL"
+        seat_prefix: "B"
+        gender_type: "mixed"
+
+  - id: 2
+    center_id: 2
+    session_code: "HN-2025-11-01"
+    course_type: "三日课程"
+    start_date: "2025-11-01"
+    end_date: "2025-11-04"
+    expected_students: 80
+    status: "PLANNING"
+    notes: "三日禅修课程"
+    meditation_halls:
+      - region_code: "A"
+        region_name: "禅堂A区"
+        region_width: 6
+        auto_rows: true
+        numbering_type: "SEQUENTIAL"
+        seat_prefix: "A"
+        gender_type: "mixed"
+
+      - region_code: "B"
+        region_name: "禅堂B区"
+        region_width: 8
+        auto_rows: true
+        numbering_type: "SEQUENTIAL"
+        seat_prefix: "B"
+        gender_type: "mixed"

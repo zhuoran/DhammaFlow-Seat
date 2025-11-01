@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="cc.vipassana.mapper.MeditationSeatMapper">
+
+    <sql id="base_column">
+        id, session_id, center_id, hall_config_id, hall_id, seat_number, student_id, bed_code, seat_type,
+        status, is_old_student, age_group, gender, region_code, row_index, col_index,
+        row_position, col_position, is_with_companion, companion_seat_id, created_at, updated_at
+    </sql>
+
+    <resultMap id="BaseResultMap" type="cc.vipassana.entity.MeditationSeat">
+        <id column="id" property="id"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="center_id" property="centerId"/>
+        <result column="hall_config_id" property="hallConfigId"/>
+        <result column="hall_id" property="hallId"/>
+        <result column="seat_number" property="seatNumber"/>
+        <result column="student_id" property="studentId"/>
+        <result column="bed_code" property="bedCode"/>
+        <result column="seat_type" property="seatType"/>
+        <result column="status" property="status"/>
+        <result column="is_old_student" property="isOldStudent"/>
+        <result column="age_group" property="ageGroup"/>
+        <result column="gender" property="gender"/>
+        <result column="region_code" property="regionCode"/>
+        <result column="row_index" property="rowIndex"/>
+        <result column="col_index" property="colIndex"/>
+        <result column="row_position" property="rowPosition"/>
+        <result column="col_position" property="colPosition"/>
+        <result column="is_with_companion" property="isWithCompanion"/>
+        <result column="companion_seat_id" property="companionSeatId"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM meditation_seat
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByHallId" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM meditation_seat
+        WHERE hall_id = #{hallId}
+        ORDER BY row_index, col_index
+    </select>
+
+    <select id="selectBySessionId" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM meditation_seat
+        WHERE session_id = #{sessionId}
+        ORDER BY row_index, col_index
+    </select>
+
+    <select id="selectBySeatNumber" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM meditation_seat
+        WHERE seat_number = #{seatNumber} AND hall_id = #{hallId}
+    </select>
+
+    <select id="selectByStudentId" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM meditation_seat
+        WHERE student_id = #{studentId}
+    </select>
+
+    <select id="selectBySeatType" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM meditation_seat
+        WHERE hall_id = #{hallId} AND seat_type = #{seatType}
+        ORDER BY row_index, col_index
+    </select>
+
+    <select id="selectUnassignedByHallId" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM meditation_seat
+        WHERE hall_id = #{hallId} AND student_id IS NULL
+        ORDER BY row_index, col_index
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO meditation_seat (
+            session_id, center_id, hall_config_id, hall_id, seat_number, student_id, bed_code, seat_type,
+            status, is_old_student, age_group, gender, region_code, row_index, col_index,
+            row_position, col_position, is_with_companion, companion_seat_id, created_at, updated_at
+        ) VALUES (
+            #{sessionId}, #{centerId}, #{hallConfigId}, #{hallId}, #{seatNumber}, #{studentId}, #{bedCode}, #{seatType},
+            #{status}, #{isOldStudent}, #{ageGroup}, #{gender}, #{regionCode}, #{rowIndex}, #{colIndex},
+            #{rowPosition}, #{colPosition}, #{isWithCompanion}, #{companionSeatId}, NOW(), NOW()
+        )
+    </insert>
+
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO meditation_seat (
+            session_id, center_id, hall_config_id, hall_id, seat_number, student_id, bed_code, seat_type,
+            status, is_old_student, age_group, gender, region_code, row_index, col_index,
+            row_position, col_position, is_with_companion, companion_seat_id, created_at, updated_at
+        ) VALUES
+        <foreach collection="seats" item="seat" separator=",">
+            (
+                #{seat.sessionId}, #{seat.centerId}, #{seat.hallConfigId}, #{seat.hallId}, #{seat.seatNumber},
+                #{seat.studentId}, #{seat.bedCode}, #{seat.seatType}, #{seat.status}, #{seat.isOldStudent},
+                #{seat.ageGroup}, #{seat.gender}, #{seat.regionCode}, #{seat.rowIndex}, #{seat.colIndex},
+                #{seat.rowPosition}, #{seat.colPosition}, #{seat.isWithCompanion}, #{seat.companionSeatId}, NOW(), NOW()
+            )
+        </foreach>
+    </insert>
+
+    <update id="update">
+        UPDATE meditation_seat SET
+            session_id = #{sessionId},
+            center_id = #{centerId},
+            hall_config_id = #{hallConfigId},
+            hall_id = #{hallId},
+            seat_number = #{seatNumber},
+            student_id = #{studentId},
+            bed_code = #{bedCode},
+            seat_type = #{seatType},
+            status = #{status},
+            is_old_student = #{isOldStudent},
+            age_group = #{ageGroup},
+            gender = #{gender},
+            region_code = #{regionCode},
+            row_index = #{rowIndex},
+            col_index = #{colIndex},
+            row_position = #{rowPosition},
+            col_position = #{colPosition},
+            is_with_companion = #{isWithCompanion},
+            companion_seat_id = #{companionSeatId},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM meditation_seat WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByHallId">
+        DELETE FROM meditation_seat WHERE hall_id = #{hallId}
+    </delete>
+
+    <delete id="deleteBySessionId">
+        DELETE FROM meditation_seat WHERE session_id = #{sessionId}
+    </delete>
+
+</mapper>

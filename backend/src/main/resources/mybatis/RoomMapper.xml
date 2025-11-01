@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="cc.vipassana.mapper.RoomMapper">
+
+    <!-- 公共查询字段 -->
+    <sql id="base_column">
+        id, center_id, room_number, building, floor, capacity, room_type, status,
+        reserved, reserved_for, special_tag, notes, created_at, updated_at
+    </sql>
+
+    <!-- resultMap -->
+    <resultMap id="BaseResultMap" type="cc.vipassana.entity.Room">
+        <id column="id" property="id"/>
+        <result column="center_id" property="centerId"/>
+        <result column="room_number" property="roomNumber"/>
+        <result column="building" property="building"/>
+        <result column="floor" property="floor"/>
+        <result column="capacity" property="capacity"/>
+        <result column="room_type" property="roomType"/>
+        <result column="status" property="status"/>
+        <result column="reserved" property="reserved"/>
+        <result column="reserved_for" property="reservedFor"/>
+        <result column="special_tag" property="specialTag"/>
+        <result column="notes" property="notes"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 查询所有房间 -->
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM room
+        ORDER BY room_number
+    </select>
+
+    <!-- 根据ID查询房间 -->
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM room
+        WHERE id = #{id}
+    </select>
+
+    <!-- 根据房号查询房间 -->
+    <select id="selectByRoomNumber" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM room
+        WHERE room_number = #{roomNumber}
+    </select>
+
+    <!-- 按房间类型查询 -->
+    <select id="selectByRoomType" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM room
+        WHERE room_type = #{roomType}
+        ORDER BY room_number
+    </select>
+
+    <!-- 按状态查询 -->
+    <select id="selectByStatus" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM room
+        WHERE status = #{status}
+        ORDER BY room_number
+    </select>
+
+    <!-- 根据房号和中心查询房间 -->
+    <select id="selectByNumber" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM room
+        WHERE center_id = #{centerId} AND room_number = #{roomNumber}
+    </select>
+
+    <!-- 查询可用房间（未预留且启用） -->
+    <select id="selectAvailable" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM room
+        WHERE status = 'ENABLED' AND reserved = FALSE
+        ORDER BY room_number
+    </select>
+
+    <!-- 分页查询 -->
+    <select id="selectWithPagination" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM room
+        ORDER BY room_number
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <!-- 插入房间 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO room (
+            center_id, room_number, building, floor, capacity, room_type, status,
+            reserved, reserved_for, special_tag, notes, created_at, updated_at
+        ) VALUES (
+            #{centerId}, #{roomNumber}, #{building}, #{floor}, #{capacity}, #{roomType}, #{status},
+            #{reserved}, #{reservedFor}, #{specialTag}, #{notes}, NOW(), NOW()
+        )
+    </insert>
+
+    <!-- 批量插入房间 -->
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO room (
+            center_id, room_number, building, floor, capacity, room_type, status,
+            reserved, reserved_for, special_tag, notes, created_at, updated_at
+        ) VALUES
+        <foreach collection="rooms" item="room" separator=",">
+            (
+                #{room.centerId}, #{room.roomNumber}, #{room.building}, #{room.floor}, #{room.capacity},
+                #{room.roomType}, #{room.status}, #{room.reserved}, #{room.reservedFor},
+                #{room.specialTag}, #{room.notes}, NOW(), NOW()
+            )
+        </foreach>
+    </insert>
+
+    <!-- 更新房间 -->
+    <update id="update">
+        UPDATE room SET
+            center_id = #{centerId},
+            room_number = #{roomNumber},
+            building = #{building},
+            floor = #{floor},
+            capacity = #{capacity},
+            room_type = #{roomType},
+            status = #{status},
+            reserved = #{reserved},
+            reserved_for = #{reservedFor},
+            special_tag = #{specialTag},
+            notes = #{notes},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除房间 -->
+    <delete id="delete">
+        DELETE FROM room WHERE id = #{id}
+    </delete>
+
+    <!-- 统计房间总数 -->
+    <select id="count" resultType="int">
+        SELECT COUNT(*) FROM room
+    </select>
+
+    <!-- 统计可用房间数 -->
+    <select id="countAvailable" resultType="int">
+        SELECT COUNT(*) FROM room
+        WHERE status = 'ENABLED' AND is_reserved = FALSE
+    </select>
+
+</mapper>

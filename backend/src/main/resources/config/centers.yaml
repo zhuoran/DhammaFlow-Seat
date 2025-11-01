@@ -1,0 +1,16 @@
+# 禅修中心配置文件
+# 用于本地开发和测试时的中心信息配置
+
+centers:
+
+  - id: 1
+    name: "郑州新密中心"
+    address: "河南省新密市新世纪学校"
+    contact_person: "李四"
+    contact_phone: "010-87654321"
+    description: "河南地区禅修中心"
+    status: "OPERATING"
+    rooms_file: null
+    halls_file: null
+
+

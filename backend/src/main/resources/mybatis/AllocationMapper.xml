@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="cc.vipassana.mapper.AllocationMapper">
+
+    <!-- 公共查询字段 -->
+    <sql id="base_column">
+        id, session_id, student_id, bed_id, allocation_type, allocation_reason,
+        is_temporary, conflict_flag, conflict_reason, created_at, updated_at
+    </sql>
+
+    <!-- resultMap -->
+    <resultMap id="BaseResultMap" type="cc.vipassana.entity.Allocation">
+        <id column="id" property="id"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="student_id" property="studentId"/>
+        <result column="bed_id" property="bedId"/>
+        <result column="allocation_type" property="allocationType"/>
+        <result column="allocation_reason" property="allocationReason"/>
+        <result column="is_temporary" property="isTemporary"/>
+        <result column="conflict_flag" property="conflictFlag"/>
+        <result column="conflict_reason" property="conflictReason"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 查询会话的所有分配 -->
+    <select id="selectBySessionId" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM allocation
+        WHERE session_id = #{sessionId}
+        ORDER BY created_at DESC
+    </select>
+
+    <!-- 查询学员的分配 -->
+    <select id="selectByStudentId" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM allocation
+        WHERE student_id = #{studentId}
+    </select>
+
+    <!-- 根据ID查询分配 -->
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM allocation
+        WHERE id = #{id}
+    </select>
+
+    <!-- 查询会话内的暂存分配 -->
+    <select id="selectTemporaryBySessionId" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM allocation
+        WHERE session_id = #{sessionId} AND is_temporary = TRUE
+        ORDER BY created_at DESC
+    </select>
+
+    <!-- 查询有冲突的分配 -->
+    <select id="selectConflictBySessionId" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM allocation
+        WHERE session_id = #{sessionId} AND conflict_flag = TRUE
+        ORDER BY created_at DESC
+    </select>
+
+    <!-- 按分配类型查询 -->
+    <select id="selectByAllocationType" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM allocation
+        WHERE session_id = #{sessionId} AND allocation_type = #{allocationType}
+        ORDER BY created_at DESC
+    </select>
+
+    <!-- 统计会话分配数 -->
+    <select id="countBySessionId" resultType="int">
+        SELECT COUNT(*) FROM allocation WHERE session_id = #{sessionId}
+    </select>
+
+    <!-- 统计会话有冲突的分配数 -->
+    <select id="countConflictBySessionId" resultType="int">
+        SELECT COUNT(*) FROM allocation
+        WHERE session_id = #{sessionId} AND conflict_flag = TRUE
+    </select>
+
+    <!-- 插入分配 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO allocation (
+            session_id, student_id, bed_id, allocation_type, allocation_reason,
+            is_temporary, conflict_flag, conflict_reason, created_at, updated_at
+        ) VALUES (
+            #{sessionId}, #{studentId}, #{bedId}, #{allocationType}, #{allocationReason},
+            #{isTemporary}, #{conflictFlag}, #{conflictReason}, NOW(), NOW()
+        )
+    </insert>
+
+    <!-- 批量插入分配 -->
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO allocation (
+            session_id, student_id, bed_id, allocation_type, allocation_reason,
+            is_temporary, conflict_flag, conflict_reason, created_at, updated_at
+        ) VALUES
+        <foreach collection="allocations" item="alloc" separator=",">
+            (
+                #{alloc.sessionId}, #{alloc.studentId}, #{alloc.bedId},
+                #{alloc.allocationType}, #{alloc.allocationReason},
+                #{alloc.isTemporary}, #{alloc.conflictFlag}, #{alloc.conflictReason},
+                NOW(), NOW()
+            )
+        </foreach>
+    </insert>
+
+    <!-- 更新分配 -->
+    <update id="update">
+        UPDATE allocation SET
+            session_id = #{sessionId},
+            student_id = #{studentId},
+            bed_id = #{bedId},
+            allocation_type = #{allocationType},
+            allocation_reason = #{allocationReason},
+            is_temporary = #{isTemporary},
+            conflict_flag = #{conflictFlag},
+            conflict_reason = #{conflictReason},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 更新分配冲突状态 -->
+    <update id="updateConflictFlag">
+        UPDATE allocation SET
+            conflict_flag = #{conflictFlag},
+            conflict_reason = #{conflictReason},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除分配 -->
+    <delete id="delete">
+        DELETE FROM allocation WHERE id = #{id}
+    </delete>
+
+    <!-- 删除会话内所有分配 -->
+    <delete id="deleteBySessionId">
+        DELETE FROM allocation WHERE session_id = #{sessionId}
+    </delete>
+
+    <!-- 检查学员是否已分配 -->
+    <select id="isAllocated" resultType="boolean">
+        SELECT COUNT(*) > 0 FROM allocation
+        WHERE session_id = #{sessionId} AND student_id = #{studentId}
+    </select>
+
+</mapper>

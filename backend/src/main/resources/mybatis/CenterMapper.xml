@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="cc.vipassana.mapper.CenterMapper">
+
+    <!-- 公共查询字段 -->
+    <sql id="base_column">
+        id, center_name, address, contact_phone, contact_person, center_description,
+        status, notes, created_at, updated_at
+    </sql>
+
+    <!-- 公共resultMap -->
+    <resultMap id="BaseResultMap" type="cc.vipassana.entity.Center">
+        <id column="id" property="id"/>
+        <result column="center_name" property="centerName"/>
+        <result column="address" property="address"/>
+        <result column="contact_phone" property="contactPhone"/>
+        <result column="contact_person" property="contactPerson"/>
+        <result column="center_description" property="centerDescription"/>
+        <result column="status" property="status"/>
+        <result column="notes" property="notes"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 查询所有禅修中心 -->
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM center
+        ORDER BY created_at DESC
+    </select>
+
+    <!-- 按ID查询禅修中心 -->
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM center
+        WHERE id = #{id}
+    </select>
+
+    <!-- 按中心名称查询 -->
+    <select id="selectByName" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM center
+        WHERE center_name = #{centerName}
+    </select>
+
+    <!-- 查询运营中的禅修中心 -->
+    <select id="selectOperatingCenters" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM center
+        WHERE status = 'OPERATING'
+        ORDER BY created_at DESC
+    </select>
+
+    <!-- 插入禅修中心 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO center (
+            center_name, address, contact_phone, contact_person, center_description,
+            status, notes, created_at, updated_at
+        ) VALUES (
+            #{centerName}, #{address}, #{contactPhone}, #{contactPerson}, #{centerDescription},
+            #{status}, #{notes}, NOW(), NOW()
+        )
+    </insert>
+
+    <!-- 更新禅修中心 -->
+    <update id="update">
+        UPDATE center SET
+            center_name = #{centerName},
+            address = #{address},
+            contact_phone = #{contactPhone},
+            contact_person = #{contactPerson},
+            center_description = #{centerDescription},
+            status = #{status},
+            notes = #{notes},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除禅修中心 -->
+    <delete id="delete">
+        DELETE FROM center WHERE id = #{id}
+    </delete>
+
+    <!-- 统计禅修中心总数 -->
+    <select id="count" resultType="int">
+        SELECT COUNT(*) FROM center
+    </select>
+
+</mapper>

@@ -1,0 +1,39 @@
+# 禅修中心配置文件
+# 定义系统中所有的禅修中心及其关联的配置文件
+
+centers:
+  # 杭州禅修中心
+  - id: 1
+    name: "杭州禅修中心"
+    address: "浙江省杭州市西湖区xxx"
+    contact_person: "张三"
+    contact_phone: "0571-xxxxx"
+    contact_email: "hangzhou@center.org"
+    description: "杭州地区主要禅修场所，拥有180间房间"
+    status: "OPERATING"
+    rooms_file: "rooms-hangzhou.yaml"
+    halls_file: "meditation-halls-hangzhou.yaml"
+
+  # 北京禅修中心
+  - id: 2
+    name: "北京禅修中心"
+    address: "北京市海淀区xxx"
+    contact_person: "李四"
+    contact_phone: "010-xxxxx"
+    contact_email: "beijing@center.org"
+    description: "北京地区禅修中心，拥有150间房间"
+    status: "OPERATING"
+    rooms_file: "rooms-beijing.yaml"
+    halls_file: "meditation-halls-beijing.yaml"
+
+  # 上海禅修中心
+  - id: 3
+    name: "上海禅修中心"
+    address: "上海市浦东新区xxx"
+    contact_person: "王五"
+    contact_phone: "021-xxxxx"
+    contact_email: "shanghai@center.org"
+    description: "上海禅修中心（预留），待启用"
+    status: "PAUSED"
+    rooms_file: "rooms-shanghai.yaml"
+    halls_file: "meditation-halls-shanghai.yaml"

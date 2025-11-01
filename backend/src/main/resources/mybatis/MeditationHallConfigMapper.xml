@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="cc.vipassana.mapper.MeditationHallConfigMapper">
+
+    <resultMap id="BaseResultMap" type="cc.vipassana.entity.MeditationHallConfig">
+        <id column="id" property="id"/>
+        <result column="center_id" property="centerId"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="hall_name" property="hallName"/>
+        <result column="region_name" property="regionName"/>
+        <result column="region_code" property="regionCode"/>
+        <result column="valid_area" property="validArea"/>
+        <result column="begin_cell" property="beginCell"/>
+        <result column="row_offset" property="rowOffset"/>
+        <result column="col_offset" property="colOffset"/>
+        <result column="max_rows" property="maxRows"/>
+        <result column="max_cols" property="maxCols"/>
+        <result column="used_rows" property="usedRows"/>
+        <result column="used_cols" property="usedCols"/>
+        <result column="region_width" property="regionWidth"/>
+        <result column="region_rows" property="regionRows"/>
+        <result column="is_auto_width" property="isAutoWidth"/>
+        <result column="is_auto_rows" property="isAutoRows"/>
+        <result column="numbering_type" property="numberingType"/>
+        <result column="seat_number_prefix" property="seatNumberPrefix"/>
+        <result column="seat_prefix" property="seatPrefix"/>
+        <result column="gender_separated" property="genderSeparated"/>
+        <result column="gender_type" property="genderType"/>
+        <result column="monk_start_cell" property="monkStartCell"/>
+        <result column="monk_max_count" property="monkMaxCount"/>
+        <result column="monk_seat_prefix" property="monkSeatPrefix"/>
+        <result column="old_student_reserved_list" property="oldStudentReservedList"/>
+        <result column="dhamma_worker_area1" property="dhammaWorkerArea1"/>
+        <result column="dhamma_worker_area2" property="dhammaWorkerArea2"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="selectBySessionId" resultMap="BaseResultMap">
+        SELECT id, center_id, session_id, hall_name, region_name, region_code, valid_area,
+               begin_cell, row_offset, col_offset, max_rows, max_cols, used_rows, used_cols,
+               region_width, region_rows, is_auto_width, is_auto_rows,
+               numbering_type, seat_number_prefix, seat_prefix, gender_separated, gender_type,
+               monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
+               dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
+        FROM meditation_hall_config
+        WHERE session_id = #{sessionId}
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, center_id, session_id, hall_name, region_name, region_code, valid_area,
+               begin_cell, row_offset, col_offset, max_rows, max_cols, used_rows, used_cols,
+               region_width, region_rows, is_auto_width, is_auto_rows,
+               numbering_type, seat_number_prefix, seat_prefix, gender_separated, gender_type,
+               monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
+               dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
+        FROM meditation_hall_config
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByRegionCode" resultMap="BaseResultMap">
+        SELECT id, center_id, session_id, hall_name, region_name, region_code, valid_area,
+               begin_cell, row_offset, col_offset, max_rows, max_cols, used_rows, used_cols,
+               region_width, region_rows, is_auto_width, is_auto_rows,
+               numbering_type, seat_number_prefix, seat_prefix, gender_separated, gender_type,
+               monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
+               dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
+        FROM meditation_hall_config
+        WHERE center_id = #{centerId} AND region_code = #{regionCode}
+    </select>
+
+    <select id="selectByCenterId" resultMap="BaseResultMap">
+        SELECT id, center_id, session_id, hall_name, region_name, region_code, valid_area,
+               begin_cell, row_offset, col_offset, max_rows, max_cols, used_rows, used_cols,
+               region_width, region_rows, is_auto_width, is_auto_rows,
+               numbering_type, seat_number_prefix, seat_prefix, gender_separated, gender_type,
+               monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
+               dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
+        FROM meditation_hall_config
+        WHERE center_id = #{centerId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO meditation_hall_config (
+            center_id, session_id, hall_name, region_name, region_code, valid_area, begin_cell, row_offset, col_offset,
+            max_rows, max_cols, used_rows, used_cols, region_width, region_rows, is_auto_width, is_auto_rows,
+            numbering_type, seat_number_prefix, seat_prefix, gender_separated, gender_type,
+            monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
+            dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
+        ) VALUES (
+            #{centerId}, #{sessionId}, #{hallName}, #{regionName}, #{regionCode}, #{validArea}, #{beginCell}, #{rowOffset}, #{colOffset},
+            #{maxRows}, #{maxCols}, #{usedRows}, #{usedCols}, #{regionWidth}, #{regionRows}, #{isAutoWidth}, #{isAutoRows},
+            #{numberingType}, #{seatNumberPrefix}, #{seatPrefix}, #{genderSeparated}, #{genderType},
+            #{monkStartCell}, #{monkMaxCount}, #{monkSeatPrefix}, #{oldStudentReservedList},
+            #{dhammaWorkerArea1}, #{dhammaWorkerArea2}, NOW(), NOW()
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE meditation_hall_config SET
+            center_id = #{centerId},
+            session_id = #{sessionId},
+            hall_name = #{hallName},
+            region_name = #{regionName},
+            region_code = #{regionCode},
+            valid_area = #{validArea},
+            begin_cell = #{beginCell},
+            row_offset = #{rowOffset},
+            col_offset = #{colOffset},
+            max_rows = #{maxRows},
+            max_cols = #{maxCols},
+            used_rows = #{usedRows},
+            used_cols = #{usedCols},
+            region_width = #{regionWidth},
+            region_rows = #{regionRows},
+            is_auto_width = #{isAutoWidth},
+            is_auto_rows = #{isAutoRows},
+            numbering_type = #{numberingType},
+            seat_number_prefix = #{seatNumberPrefix},
+            seat_prefix = #{seatPrefix},
+            gender_separated = #{genderSeparated},
+            gender_type = #{genderType},
+            monk_start_cell = #{monkStartCell},
+            monk_max_count = #{monkMaxCount},
+            monk_seat_prefix = #{monkSeatPrefix},
+            old_student_reserved_list = #{oldStudentReservedList},
+            dhamma_worker_area1 = #{dhammaWorkerArea1},
+            dhamma_worker_area2 = #{dhammaWorkerArea2},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM meditation_hall_config WHERE id = #{id}
+    </delete>
+
+</mapper>

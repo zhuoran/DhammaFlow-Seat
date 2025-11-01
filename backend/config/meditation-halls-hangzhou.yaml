@@ -1,0 +1,73 @@
+# 杭州禅修中心禅堂配置
+# 定义禅堂的座位布局、编号方式等信息
+
+center_id: 1
+center_name: "杭州禅修中心"
+description: "杭州中心拥有两个禅堂区域：女众区(A)和男众区(B)"
+
+meditation_halls:
+  # 禅堂A区 - 女众禅堂
+  - code: "A"
+    name: "禅堂A区（女众）"
+    gender_type: "F"  # F=女众, M=男众, mixed=混合
+    description: "女众禅堂区域"
+
+    # 座位布局配置
+    region_width: 4          # 区域宽度（列数）：4列
+    auto_rows: true          # 行数自动计算
+    max_rows: 50             # 最大行数限制（自动计算时的上限）
+
+    # 座位编号配置
+    numbering_type: "sequential"  # sequential(顺序) / odd(奇数) / even(偶数)
+    seat_prefix: "A"             # 座位号前缀
+
+    # 法师座位配置
+    monk_seats:
+      start_position: "A1"    # 法师座位起始位置
+      max_count: 5           # 法师最多5人
+      prefix: "A-M"          # 法师座位号前缀（如A-M1, A-M2...）
+      vertical: true         # 法师座位垂直排列
+
+    # 座位生成时的其他参数
+    reserve_first_row: false     # 是否预留第一行
+    reserve_front_columns: 0     # 前置保留列数
+
+    # 备注说明
+    notes: "女众禅堂，配置为4列宽度，根据参加学员数自动计算行数"
+
+  # 禅堂B区 - 男众禅堂
+  - code: "B"
+    name: "禅堂B区（男众）"
+    gender_type: "M"  # 男众
+    description: "男众禅堂区域"
+
+    # 座位布局配置
+    region_width: 10         # 区域宽度（列数）：10列
+    auto_rows: true          # 行数自动计算
+    max_rows: 40             # 最大行数限制
+
+    # 座位编号配置
+    numbering_type: "odd"    # 使用奇数编号 (1,3,5,7,...)
+    seat_prefix: "B"         # 座位号前缀
+
+    # 法师座位配置
+    monk_seats:
+      start_position: "B1"
+      max_count: 5
+      prefix: "B-M"
+      vertical: true
+
+    # 备注说明
+    notes: "男众禅堂，配置为10列宽度，编号为奇数形式"
+
+# 说明：
+# 1. 禅堂配置相对固定，不常改动
+# 2. gender_type 指定该禅堂区域主要用于男众或女众
+# 3. region_width 定义座位布局的列数
+# 4. numbering_type 定义座位号的编号方式：
+#    - sequential: 顺序编号 (1,2,3,4,5...)
+#    - odd: 奇数编号 (1,3,5,7,9...)
+#    - even: 偶数编号 (2,4,6,8,10...)
+# 5. 如果需要添加更多禅堂区域（如三层禅堂），继续在此添加
+# 6. auto_rows: true 时，系统会根据参加学员数自动计算需要的行数
+# 7. auto_rows: false 时，手动指定 region_rows 固定行数

@@ -1,0 +1,30 @@
+{
+  "name": "dhammaflowseat-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "禅修中心智能排床系统 - 前端",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "next": "^14.2.0",
+    "antd": "^5.13.0",
+    "@ant-design/icons": "^5.2.0",
+    "axios": "^1.6.0",
+    "date-fns": "^2.30.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^14.2.0"
+  }
+}

@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="cc.vipassana.mapper.StudentMapper">
+
+    <!-- 公共查询字段 -->
+    <sql id="base_column">
+        id, session_id, student_number, name, id_card, age, gender, age_group, city, phone,
+        study_times, course_10day_times, course_4mindfulness_times, course_20day_times, course_30day_times,
+        course_45day_times, service_times, fellow_list, fellow_group_id,
+        special_notes, practice, id_address, willing_to_serve, emergency_phone, created_at, updated_at
+    </sql>
+
+    <!-- 公共resultMap -->
+    <resultMap id="BaseResultMap" type="cc.vipassana.entity.Student">
+        <id column="id" property="id"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="student_number" property="studentNumber"/>
+        <result column="name" property="name"/>
+        <result column="id_card" property="idCard"/>
+        <result column="age" property="age"/>
+        <result column="gender" property="gender"/>
+        <result column="age_group" property="ageGroup"/>
+        <result column="city" property="city"/>
+        <result column="phone" property="phone"/>
+        <result column="study_times" property="studyTimes"/>
+        <result column="course_10day_times" property="course10dayTimes"/>
+        <result column="course_4mindfulness_times" property="course4mindfulnessTimes"/>
+        <result column="course_20day_times" property="course20dayTimes"/>
+        <result column="course_30day_times" property="course30dayTimes"/>
+        <result column="course_45day_times" property="course45dayTimes"/>
+        <result column="service_times" property="serviceTimes"/>
+        <result column="fellow_list" property="fellowList"/>
+        <result column="fellow_group_id" property="fellowGroupId"/>
+        <result column="special_notes" property="specialNotes"/>
+        <result column="practice" property="practice"/>
+        <result column="id_address" property="idAddress"/>
+        <result column="willing_to_serve" property="willingToServe"/>
+        <result column="emergency_phone" property="emergencyPhone"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 查询会话内所有学员 -->
+    <select id="selectBySessionId" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM student
+        WHERE session_id = #{sessionId}
+        ORDER BY name
+    </select>
+
+    <!-- 分页查询学员 -->
+    <select id="selectBySessionIdWithPagination" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM student
+        WHERE session_id = #{sessionId}
+        ORDER BY name
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <!-- 根据ID查询学员 -->
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM student
+        WHERE id = #{id}
+    </select>
+
+    <!-- 根据姓名和会话查询学员 -->
+    <select id="selectByName" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM student
+        WHERE name = #{name} AND session_id = #{sessionId}
+    </select>
+
+    <!-- 统计会话学员总数 -->
+    <select id="countBySessionId" resultType="int">
+        SELECT COUNT(*) FROM student WHERE session_id = #{sessionId}
+    </select>
+
+    <!-- 按优先级排序查询学员（用于分配算法）
+        排序规则：
+        1. 法师（名字以"法"开头）
+        2. 旧生（修学次数 > 0）
+        3. 新生
+        4. 同优先级内按课程参修次数降序
+    -->
+    <select id="selectSorted" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM student
+        WHERE session_id = #{sessionId}
+        ORDER BY
+            CASE
+                WHEN name LIKE '法%' THEN 1
+                WHEN study_times > 0 THEN 2
+                ELSE 3
+            END,
+            (COALESCE(course_10day_times, 0) + COALESCE(course_4mindfulness_times, 0) +
+             COALESCE(course_20day_times, 0) + COALESCE(course_30day_times, 0) +
+             COALESCE(course_45day_times, 0)) DESC,
+            id ASC
+    </select>
+
+    <!-- 按同伴组查询学员 -->
+    <select id="selectByFellowGroupId" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM student
+        WHERE fellow_group_id = #{fellowGroupId}
+        ORDER BY id
+    </select>
+
+    <!-- 插入学员 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO student (
+            session_id, student_number, name, id_card, age, gender, age_group, city, phone,
+            study_times, course_10day_times, course_4mindfulness_times, course_20day_times, course_30day_times,
+            course_45day_times, service_times, fellow_list, fellow_group_id,
+            special_notes, practice, id_address, willing_to_serve, emergency_phone, created_at, updated_at
+        ) VALUES (
+            #{sessionId}, #{studentNumber}, #{name}, #{idCard}, #{age}, #{gender}, #{ageGroup}, #{city}, #{phone},
+            #{studyTimes}, #{course10dayTimes}, #{course4mindfulnessTimes}, #{course20dayTimes}, #{course30dayTimes},
+            #{course45dayTimes}, #{serviceTimes}, #{fellowList}, #{fellowGroupId},
+            #{specialNotes}, #{practice}, #{idAddress}, #{willingToServe}, #{emergencyPhone}, NOW(), NOW()
+        )
+    </insert>
+
+    <!-- 批量插入学员 -->
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO student (
+            session_id, student_number, name, id_card, age, gender, age_group, city, phone,
+            study_times, course_10day_times, course_4mindfulness_times, course_20day_times, course_30day_times,
+            course_45day_times, service_times, fellow_list, fellow_group_id,
+            special_notes, practice, id_address, willing_to_serve, emergency_phone, created_at, updated_at
+        ) VALUES
+        <foreach collection="students" item="student" separator=",">
+            (
+                #{student.sessionId}, #{student.studentNumber}, #{student.name},
+                #{student.idCard}, #{student.age}, #{student.gender}, #{student.ageGroup}, #{student.city}, #{student.phone},
+                #{student.studyTimes}, #{student.course10dayTimes}, #{student.course4mindfulnessTimes},
+                #{student.course20dayTimes}, #{student.course30dayTimes}, #{student.course45dayTimes},
+                #{student.serviceTimes}, #{student.fellowList}, #{student.fellowGroupId}, #{student.specialNotes},
+                #{student.practice}, #{student.idAddress}, #{student.willingToServe}, #{student.emergencyPhone},
+                NOW(), NOW()
+            )
+        </foreach>
+    </insert>
+
+    <!-- 更新学员 -->
+    <update id="update">
+        UPDATE student SET
+            session_id = #{sessionId},
+            student_number = #{studentNumber},
+            name = #{name},
+            id_card = #{idCard},
+            age = #{age},
+            gender = #{gender},
+            age_group = #{ageGroup},
+            city = #{city},
+            phone = #{phone},
+            study_times = #{studyTimes},
+            course_10day_times = #{course10dayTimes},
+            course_4mindfulness_times = #{course4mindfulnessTimes},
+            course_20day_times = #{course20dayTimes},
+            course_30day_times = #{course30dayTimes},
+            course_45day_times = #{course45dayTimes},
+            service_times = #{serviceTimes},
+            fellow_list = #{fellowList},
+            fellow_group_id = #{fellowGroupId},
+            special_notes = #{specialNotes},
+            practice = #{practice},
+            id_address = #{idAddress},
+            willing_to_serve = #{willingToServe},
+            emergency_phone = #{emergencyPhone},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除学员 -->
+    <delete id="delete">
+        DELETE FROM student WHERE id = #{id}
+    </delete>
+
+    <!-- 删除会话内所有学员 -->
+    <delete id="deleteBySessionId">
+        DELETE FROM student WHERE session_id = #{sessionId}
+    </delete>
+
+</mapper>

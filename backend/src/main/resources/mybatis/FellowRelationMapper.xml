@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="cc.vipassana.mapper.FellowRelationMapper">
+
+    <resultMap id="BaseResultMap" type="cc.vipassana.entity.FellowRelation">
+        <id column="id" property="id"/>
+        <result column="session_id" property="sessionId"/>
+        <result column="fellow_group_id" property="fellowGroupId"/>
+        <result column="primary_student_id" property="primaryStudentId"/>
+        <result column="related_student_ids" property="relatedStudentIds"/>
+        <result column="separation_flag" property="separationFlag"/>
+        <result column="separation_reason" property="separationReason"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="selectBySessionId" resultMap="BaseResultMap">
+        SELECT id, session_id, fellow_group_id, primary_student_id, related_student_ids,
+               separation_flag, separation_reason, created_at, updated_at
+        FROM fellow_relation
+        WHERE session_id = #{sessionId}
+        ORDER BY fellow_group_id
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, session_id, fellow_group_id, primary_student_id, related_student_ids,
+               separation_flag, separation_reason, created_at, updated_at
+        FROM fellow_relation
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO fellow_relation (
+            session_id, fellow_group_id, primary_student_id, related_student_ids,
+            separation_flag, separation_reason, created_at, updated_at
+        ) VALUES (
+            #{sessionId}, #{fellowGroupId}, #{primaryStudentId}, #{relatedStudentIds},
+            #{separationFlag}, #{separationReason}, NOW(), NOW()
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE fellow_relation SET
+            session_id = #{sessionId},
+            fellow_group_id = #{fellowGroupId},
+            primary_student_id = #{primaryStudentId},
+            related_student_ids = #{relatedStudentIds},
+            separation_flag = #{separationFlag},
+            separation_reason = #{separationReason},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM fellow_relation WHERE id = #{id}
+    </delete>
+
+</mapper>

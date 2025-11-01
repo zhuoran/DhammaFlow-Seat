@@ -1,0 +1,261 @@
+# 杭州禅修中心房间配置
+# 定义杭州禅修中心的所有房间信息
+# 房间一旦配置完成，基本保持不变
+
+center_id: 1
+center_name: "杭州禅修中心"
+total_rooms: 180
+description: "女众楼B（100间）+ 男众楼A（80间）"
+
+buildings:
+  - code: "B"
+    name: "女众楼"
+    floors: 3
+    rooms_count: 100
+  - code: "A"
+    name: "男众楼"
+    floors: 3
+    rooms_count: 80
+
+# 房间定义
+# type: monk(法师房) / old_student(旧生房) / new_student(新生房) / other(其他)
+# status: enabled(启用) / disabled(禁用)
+# reserved: true/false - 是否预留（预留房不参与自动分配）
+
+rooms:
+  # ===== B楼 1楼 =====
+  # 法师房
+  - number: "B101"
+    building: "B"
+    floor: 1
+    capacity: 2
+    type: "monk"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "B102"
+    building: "B"
+    floor: 1
+    capacity: 2
+    type: "monk"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "B103"
+    building: "B"
+    floor: 1
+    capacity: 2
+    type: "monk"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "B104"
+    building: "B"
+    floor: 1
+    capacity: 2
+    type: "monk"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "B105"
+    building: "B"
+    floor: 1
+    capacity: 2
+    type: "monk"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  # 旧生房
+  - number: "B106"
+    building: "B"
+    floor: 1
+    capacity: 2
+    type: "old_student"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "B107"
+    building: "B"
+    floor: 1
+    capacity: 2
+    type: "old_student"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "B108"
+    building: "B"
+    floor: 1
+    capacity: 2
+    type: "old_student"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "B109"
+    building: "B"
+    floor: 1
+    capacity: 2
+    type: "old_student"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "B110"
+    building: "B"
+    floor: 1
+    capacity: 2
+    type: "old_student"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  # ===== B楼 2楼 =====
+  # 新生房
+  - number: "B201"
+    building: "B"
+    floor: 2
+    capacity: 2
+    type: "new_student"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "B202"
+    building: "B"
+    floor: 2
+    capacity: 2
+    type: "new_student"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  # ... 继续配置B201-B235 (35间新生房) ...
+  # 为简洁起见，这里省略了详细配置
+  # 实际使用时，需要配置所有房间
+
+  # ===== B楼 3楼 =====
+  # 法工房等预留房间
+  - number: "B301"
+    building: "B"
+    floor: 3
+    capacity: 2
+    type: "other"
+    status: "enabled"
+    reserved: true
+    reserved_for: "法工房"
+    notes: "预留给法工（不参与学员分配）"
+
+  - number: "B302"
+    building: "B"
+    floor: 3
+    capacity: 2
+    type: "other"
+    status: "enabled"
+    reserved: true
+    reserved_for: "讲师房"
+    notes: "预留给讲师（不参与学员分配）"
+
+  - number: "B303"
+    building: "B"
+    floor: 3
+    capacity: 1
+    type: "other"
+    status: "enabled"
+    reserved: true
+    reserved_for: "储物房"
+    notes: "储物房"
+
+  # ===== A楼 1楼 (男众楼) =====
+  # 法师房
+  - number: "A101"
+    building: "A"
+    floor: 1
+    capacity: 2
+    type: "monk"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "A102"
+    building: "A"
+    floor: 1
+    capacity: 2
+    type: "monk"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "A103"
+    building: "A"
+    floor: 1
+    capacity: 2
+    type: "monk"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  # 旧生房
+  - number: "A104"
+    building: "A"
+    floor: 1
+    capacity: 2
+    type: "old_student"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "A105"
+    building: "A"
+    floor: 1
+    capacity: 2
+    type: "old_student"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  # ===== A楼 2楼 =====
+  # 新生房
+  - number: "A201"
+    building: "A"
+    floor: 2
+    capacity: 2
+    type: "new_student"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  - number: "A202"
+    building: "A"
+    floor: 2
+    capacity: 2
+    type: "new_student"
+    status: "enabled"
+    reserved: false
+    notes: ""
+
+  # ... 继续配置其他新生房 ...
+
+  # ===== A楼 3楼 =====
+  - number: "A301"
+    building: "A"
+    floor: 3
+    capacity: 2
+    type: "other"
+    status: "enabled"
+    reserved: true
+    reserved_for: "法工房"
+    notes: "预留给法工"
+
+# 说明：
+# 1. 上述配置为示例，实际使用时需配置所有180间房间
+# 2. 建议使用脚本批量生成房间配置
+# 3. status: enabled表示房间可用；disabled表示房间禁用（维修等）
+# 4. reserved: true的房间在自动分配时会被排除
+# 5. capacity应与实际房间情况一致（通常为1或2）
