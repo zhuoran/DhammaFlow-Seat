@@ -73,3 +73,4 @@ export { allocationApi } from './allocation';
 export { reportApi } from './report';
 export { roomApi } from './room';
 export { bedApi } from './bed';
+export { importApi } from './import';

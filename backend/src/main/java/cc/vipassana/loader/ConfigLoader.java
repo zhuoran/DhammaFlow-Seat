@@ -220,8 +220,7 @@ public class ConfigLoader implements CommandLineRunner {
         room.setCapacity(roomItem.getCapacity());
         room.setRoomType(roomItem.getType());
         room.setStatus(roomItem.getStatus());
-        room.setReserved(roomItem.getReserved() != null && roomItem.getReserved());
-        room.setReservedFor(roomItem.getReservedFor());
+        room.setGenderArea(roomItem.getGenderArea());
         room.setNotes(roomItem.getNotes());
         room.setCreatedAt(LocalDateTime.now());
         room.setUpdatedAt(LocalDateTime.now());
@@ -297,8 +296,7 @@ public class ConfigLoader implements CommandLineRunner {
                 .capacity(((Number) data.get("capacity")).intValue())
                 .type((String) data.get("type"))
                 .status((String) data.getOrDefault("status", "enabled"))
-                .reserved((Boolean) data.getOrDefault("reserved", false))
-                .reservedFor((String) data.getOrDefault("reserved_for", null))
+                .genderArea((String) data.getOrDefault("gender_area", "女"))
                 .notes((String) data.getOrDefault("notes", null))
                 .build();
     }

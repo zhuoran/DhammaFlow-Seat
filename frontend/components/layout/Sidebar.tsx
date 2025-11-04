@@ -14,6 +14,7 @@ import {
   FileOutlined,
   HomeOutlined,
   DribbbleOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -47,11 +48,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
       label: '房间管理',
       onClick: () => router.push('/rooms'),
     },
+    // {
+    //   key: '/beds',
+    //   icon: <DribbbleOutlined />,
+    //   label: '床位管理',
+    //   onClick: () => router.push('/beds'),
+    // },
     {
-      key: '/beds',
-      icon: <DribbbleOutlined />,
-      label: '床位管理',
-      onClick: () => router.push('/beds'),
+      key: '/import',
+      icon: <UploadOutlined />,
+      label: '房间数据导入',
+      onClick: () => router.push('/import'),
     },
     {
       key: '/allocations',
@@ -90,7 +97,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
     if (pathname === '/') return '/';
     if (pathname.startsWith('/students')) return '/students';
     if (pathname.startsWith('/rooms')) return '/rooms';
-    if (pathname.startsWith('/beds')) return '/beds';
+    // if (pathname.startsWith('/beds')) return '/beds';
+    if (pathname.startsWith('/import')) return '/import';
     if (pathname === '/allocations') return '/allocations';
     if (pathname.startsWith('/allocations/conflicts')) return '/allocations/conflicts';
     if (pathname.startsWith('/allocations/details')) return '/allocations/details';

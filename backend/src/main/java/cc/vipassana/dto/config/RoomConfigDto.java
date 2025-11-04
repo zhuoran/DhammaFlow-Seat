@@ -73,11 +73,8 @@ public class RoomConfigDto {
         /** 状态 */
         private String status;
 
-        /** 是否预留 */
-        private Boolean reserved;
-
-        /** 预留用途 */
-        private String reservedFor;
+        /** 性别区域 (男/女) */
+        private String genderArea;
 
         /** 备注 */
         private String notes;

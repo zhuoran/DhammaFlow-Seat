@@ -76,4 +76,9 @@ public interface BedMapper {
      * 统计床位总数
      */
     int count();
+
+    /**
+     * 统计房间内所有床位数
+     */
+    int countByRoomId(@Param("roomId") Long roomId);
 }

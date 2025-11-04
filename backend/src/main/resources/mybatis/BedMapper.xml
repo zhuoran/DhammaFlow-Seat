@@ -82,4 +82,8 @@
         SELECT COUNT(*) FROM bed
     </select>
 
+    <select id="countByRoomId" resultType="int">
+        SELECT COUNT(*) FROM bed WHERE room_id = #{roomId}
+    </select>
+
 </mapper>

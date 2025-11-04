@@ -4,10 +4,10 @@
 sessions:
   - id: 1
     center_id: 1
-    session_code: "ZZ-2025-10-16"
+    session_code: "ZZ-2025-11-16"
     course_type: "十日课程"
-    start_date: "2025-10-16"
-    end_date: "2025-10-26"
+    start_date: "2025-11-16"
+    end_date: "2025-11-26"
     expected_students: 100
     status: "PLANNING"
     notes: "十日禅修课程"

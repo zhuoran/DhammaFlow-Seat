@@ -21,7 +21,7 @@ import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  BulkOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import { bedApi, roomApi } from '@/services/api';
 
@@ -313,7 +313,7 @@ export default function BedsPage() {
                 />
                 <span>个床位</span>
                 <Button
-                  icon={<BulkOutlined />}
+                  icon={<CopyOutlined />}
                   onClick={handleGenerateBeds}
                 >
                   生成
