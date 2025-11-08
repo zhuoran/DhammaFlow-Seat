@@ -105,6 +105,14 @@ public interface AllocationService {
      */
     Allocation getAllocationByStudentId(Long studentId);
 
+    /**
+     * 交换两个学生的床位分配
+     *
+     * @param allocationId1 第一个学员的分配ID
+     * @param allocationId2 第二个学员的分配ID
+     */
+    void swapAllocations(Long allocationId1, Long allocationId2);
+
     // ========== 数据传输对象 ==========
 
     /**

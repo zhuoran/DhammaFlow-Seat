@@ -2,7 +2,9 @@ package cc.vipassana.controller;
 
 import cc.vipassana.common.ResponseResult;
 import cc.vipassana.common.SystemErrorCode;
+import cc.vipassana.dto.SessionConfigDTO;
 import cc.vipassana.entity.Session;
+import cc.vipassana.service.SessionConfigService;
 import cc.vipassana.service.SessionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +24,9 @@ public class SessionController {
 
     @Autowired
     private SessionService sessionService;
+
+    @Autowired
+    private SessionConfigService sessionConfigService;
 
     /**
      * 获取所有期次
@@ -215,6 +220,69 @@ public class SessionController {
             log.error("获取期次总数失败", e);
             return new ResponseResult<>(SystemErrorCode.BUSINESS_ERROR.getCode(),
                     "获取期次总数失败: " + e.getMessage(), null);
+        }
+    }
+
+    /**
+     * 获取课程设置
+     *
+     * @param sessionId 课程ID
+     * @return 课程设置信息
+     */
+    @GetMapping("/{sessionId}/config")
+    public ResponseResult<SessionConfigDTO> getSessionConfig(@PathVariable Long sessionId) {
+        try {
+            if (sessionId == null || sessionId <= 0) {
+                return new ResponseResult<>(SystemErrorCode.PARAM_ERROR.getCode(),
+                        "课程ID无效", null);
+            }
+
+            SessionConfigDTO config = sessionConfigService.getSessionConfig(sessionId);
+            if (config != null) {
+                return new ResponseResult<>(SystemErrorCode.SUCCESS.getCode(),
+                        "获取课程设置成功", config);
+            }
+            return new ResponseResult<>(SystemErrorCode.DATA_NOT_FOUND.getCode(),
+                    "课程设置不存在", null);
+        } catch (Exception e) {
+            log.error("获取课程设置失败：课程ID={}", sessionId, e);
+            return new ResponseResult<>(SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "获取课程设置失败: " + e.getMessage(), null);
+        }
+    }
+
+    /**
+     * 保存课程设置
+     *
+     * @param sessionId 课程ID
+     * @param config 课程设置信息
+     * @return 保存结果
+     */
+    @PostMapping("/{sessionId}/config")
+    public ResponseResult<Void> saveSessionConfig(@PathVariable Long sessionId,
+                                                  @RequestBody SessionConfigDTO config) {
+        try {
+            if (sessionId == null || sessionId <= 0) {
+                return new ResponseResult<>(SystemErrorCode.PARAM_ERROR.getCode(),
+                        "课程ID无效", null);
+            }
+
+            if (config == null) {
+                return new ResponseResult<>(SystemErrorCode.PARAM_ERROR.getCode(),
+                        "课程设置信息为空", null);
+            }
+
+            boolean success = sessionConfigService.saveSessionConfig(sessionId, config);
+            if (success) {
+                return new ResponseResult<>(SystemErrorCode.SUCCESS.getCode(),
+                        "保存课程设置成功", null);
+            }
+            return new ResponseResult<>(SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "保存课程设置失败", null);
+        } catch (Exception e) {
+            log.error("保存课程设置异常：课程ID={}", sessionId, e);
+            return new ResponseResult<>(SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "保存课程设置异常: " + e.getMessage(), null);
         }
     }
 }

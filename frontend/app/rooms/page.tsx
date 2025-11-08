@@ -233,10 +233,10 @@ export default function RoomsPage() {
 
     rooms.forEach((room: any) => {
       // 按性别和容量分类统计
-      // genderArea 字段表示性别区域（男/女）
+      // genderArea 字段表示性别区域（支持 "男"/"男众" 和 "女"/"女众" 格式）
       // capacity 表示床位数量（1=单间，2=双人间）
 
-      const genderArea = room.genderArea === '男' ? 'male' : 'female';
+      const genderArea = room.genderArea?.includes('男') ? 'male' : 'female';
       const isSingle = room.capacity === 1;
       const isPublic = room.notes?.includes('公共') || room.notes?.includes('男女');
 
@@ -636,10 +636,9 @@ export default function RoomsPage() {
             <Select
               placeholder="选择房间类型"
               options={[
-                { label: '法师房', value: 'monk' },
-                { label: '旧生房', value: 'old_student' },
-                { label: '新生房', value: 'new_student' },
-                { label: '其他', value: 'other' },
+                { label: '学员房', value: '学员房' },
+                { label: '义工房', value: '义工房' },
+                { label: '老师房', value: '老师房' },
               ]}
             />
           </Form.Item>

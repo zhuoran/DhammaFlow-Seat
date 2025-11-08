@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Table, Button, Space, Modal, Tag, Empty, App } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Table, Button, Space, Modal, Tag, Empty, App, Alert } from 'antd';
 import { CheckOutlined, DeleteOutlined } from '@ant-design/icons';
 
 export default function Conflicts() {
@@ -30,12 +30,21 @@ export default function Conflicts() {
     },
   ]);
 
-  const currentSession = typeof window !== 'undefined'
-    ? (() => {
-        const stored = localStorage.getItem('currentSession');
-        return stored ? JSON.parse(stored) : null;
-      })()
-    : null;
+  const [currentSession, setCurrentSession] = useState<any>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // 初始化：从 localStorage 读取当前会期
+  useEffect(() => {
+    const stored = localStorage.getItem('currentSession');
+    if (stored) {
+      setCurrentSession(JSON.parse(stored));
+    }
+    setIsHydrated(true);
+  }, []);
+
+  if (!isHydrated) {
+    return null;
+  }
 
   if (!currentSession) {
     return (
@@ -43,7 +52,14 @@ export default function Conflicts() {
         <div className="page-header">
           <h1>冲突管理</h1>
         </div>
-        <Empty description="请先选择课程会期" style={{ marginTop: 50 }} />
+        <Alert
+          message="请先选择课程会期"
+          description="从顶部菜单栏选择要操作的禅修中心和课程会期后，可查看和处理分配冲突"
+          type="info"
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
+        <Empty description="暂无数据" style={{ marginTop: 50 }} />
       </div>
     );
   }

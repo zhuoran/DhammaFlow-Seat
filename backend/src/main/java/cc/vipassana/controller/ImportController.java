@@ -4,16 +4,20 @@ import com.alibaba.excel.EasyExcel;
 import cc.vipassana.common.ResponseResult;
 import cc.vipassana.common.SystemErrorCode;
 import cc.vipassana.dto.RoomBedImportDTO;
+import cc.vipassana.dto.StudentImportDTO;
 import cc.vipassana.listener.RoomBedImportListener;
 import cc.vipassana.mapper.RoomMapper;
 import cc.vipassana.mapper.BedMapper;
+import cc.vipassana.service.StudentImportService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,6 +34,9 @@ public class ImportController {
 
     @Autowired
     private BedMapper bedMapper;
+
+    @Autowired
+    private StudentImportService studentImportService;
 
     /**
      * 导入房间和床位数据
@@ -132,6 +139,166 @@ public class ImportController {
             return new ResponseResult<>(
                     SystemErrorCode.BUSINESS_ERROR.getCode(),
                     "获取模板失败: " + e.getMessage(),
+                    null
+            );
+        }
+    }
+
+    /**
+     * 学员导入 - 预检查阶段
+     * 识别新学员 vs 重复学员（防重复导入）
+     *
+     * @param file 上传的 Excel 文件
+     * @param sessionId 课程ID
+     * @return 预检查结果：新学员列表 + 重复学员列表
+     */
+    @PostMapping("/students/precheck")
+    public ResponseResult<Map<String, Object>> precheckStudents(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("sessionId") Long sessionId) {
+
+        // 参数验证
+        if (file == null || file.isEmpty()) {
+            return new ResponseResult<>(
+                    SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "请上传 Excel 文件",
+                    null
+            );
+        }
+
+        if (sessionId == null || sessionId <= 0) {
+            return new ResponseResult<>(
+                    SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "课程ID不能为空",
+                    null
+            );
+        }
+
+        // 检查文件格式
+        String fileName = file.getOriginalFilename();
+        if (fileName == null || (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls"))) {
+            return new ResponseResult<>(
+                    SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "只支持 .xlsx 或 .xls 格式的文件",
+                    null
+            );
+        }
+
+        try {
+            // 读取 Excel 文件中的学员数据
+            List<StudentImportDTO> students = new ArrayList<>();
+            InputStream inputStream = file.getInputStream();
+            EasyExcel.read(inputStream, StudentImportDTO.class, new com.alibaba.excel.event.AnalysisEventListener<StudentImportDTO>() {
+                @Override
+                public void invoke(StudentImportDTO data, com.alibaba.excel.context.AnalysisContext context) {
+                    if (data != null && data.getName() != null) {
+                        students.add(data);
+                    }
+                }
+
+                @Override
+                public void doAfterAllAnalysed(com.alibaba.excel.context.AnalysisContext context) {
+                }
+            })
+                    .headRowNumber(1)  // 第一行是表头
+                    .doReadAll();
+
+            log.info("学员导入预检查 - 读取 {} 条数据，课程ID={}", students.size(), sessionId);
+
+            // 调用预检查服务
+            Map<String, Object> precheckResult = studentImportService.precheck(sessionId, students);
+
+            return new ResponseResult<>(
+                    SystemErrorCode.SUCCESS.getCode(),
+                    "预检查完成",
+                    precheckResult
+            );
+
+        } catch (Exception e) {
+            log.error("学员导入预检查失败", e);
+            return new ResponseResult<>(
+                    SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "预检查失败: " + e.getMessage(),
+                    null
+            );
+        }
+    }
+
+    /**
+     * 学员导入 - 执行导入
+     * 仅导入新学员，拒绝重复学员（防重复导入）
+     *
+     * @param file 上传的 Excel 文件
+     * @param sessionId 课程ID
+     * @return 导入结果：成功导入数 + 拒绝数 + 失败数
+     */
+    @PostMapping("/students")
+    public ResponseResult<Map<String, Object>> importStudents(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("sessionId") Long sessionId) {
+
+        // 参数验证
+        if (file == null || file.isEmpty()) {
+            return new ResponseResult<>(
+                    SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "请上传 Excel 文件",
+                    null
+            );
+        }
+
+        if (sessionId == null || sessionId <= 0) {
+            return new ResponseResult<>(
+                    SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "课程ID不能为空",
+                    null
+            );
+        }
+
+        // 检查文件格式
+        String fileName = file.getOriginalFilename();
+        if (fileName == null || (!fileName.endsWith(".xlsx") && !fileName.endsWith(".xls"))) {
+            return new ResponseResult<>(
+                    SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "只支持 .xlsx 或 .xls 格式的文件",
+                    null
+            );
+        }
+
+        try {
+            // 读取 Excel 文件中的学员数据
+            List<StudentImportDTO> students = new ArrayList<>();
+            InputStream inputStream = file.getInputStream();
+            EasyExcel.read(inputStream, StudentImportDTO.class, new com.alibaba.excel.event.AnalysisEventListener<StudentImportDTO>() {
+                @Override
+                public void invoke(StudentImportDTO data, com.alibaba.excel.context.AnalysisContext context) {
+                    if (data != null && data.getName() != null) {
+                        students.add(data);
+                    }
+                }
+
+                @Override
+                public void doAfterAllAnalysed(com.alibaba.excel.context.AnalysisContext context) {
+                }
+            })
+                    .headRowNumber(1)  // 第一行是表头
+                    .doReadAll();
+
+            log.info("学员导入执行 - 读取 {} 条数据，课程ID={}", students.size(), sessionId);
+
+            // 调用导入服务
+            Map<String, Object> importResult = studentImportService.importStudents(sessionId, students);
+
+            return new ResponseResult<>(
+                    SystemErrorCode.SUCCESS.getCode(),
+                    "导入完成",
+                    importResult
+            );
+
+        } catch (Exception e) {
+            log.error("学员导入执行失败", e);
+            return new ResponseResult<>(
+                    SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "导入失败: " + e.getMessage(),
                     null
             );
         }

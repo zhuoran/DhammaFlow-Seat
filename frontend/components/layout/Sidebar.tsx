@@ -15,6 +15,8 @@ import {
   HomeOutlined,
   DribbbleOutlined,
   UploadOutlined,
+  SettingOutlined,
+  BgColorsOutlined,
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -43,6 +45,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
       onClick: () => router.push('/students'),
     },
     {
+      key: '/course-config',
+      icon: <SettingOutlined />,
+      label: '课程设置',
+      onClick: () => router.push('/course-config'),
+    },
+    {
       key: '/rooms',
       icon: <HomeOutlined />,
       label: '房间管理',
@@ -65,6 +73,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
       icon: <SwapOutlined />,
       label: '房间分配',
       onClick: () => router.push('/allocations'),
+    },
+    {
+      key: '/allocations/result',
+      icon: <BgColorsOutlined />,
+      label: '分配结果',
+      onClick: () => router.push('/allocations/result'),
     },
     {
       key: '/allocations/conflicts',
@@ -96,12 +110,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onCollapse }) => {
   const getSelectedKey = () => {
     if (pathname === '/') return '/';
     if (pathname.startsWith('/students')) return '/students';
+    if (pathname.startsWith('/course-config')) return '/course-config';
     if (pathname.startsWith('/rooms')) return '/rooms';
     // if (pathname.startsWith('/beds')) return '/beds';
     if (pathname.startsWith('/import')) return '/import';
-    if (pathname === '/allocations') return '/allocations';
     if (pathname.startsWith('/allocations/conflicts')) return '/allocations/conflicts';
+    if (pathname.startsWith('/allocations/result')) return '/allocations/result';
     if (pathname.startsWith('/allocations/details')) return '/allocations/details';
+    if (pathname === '/allocations') return '/allocations';
     if (pathname.startsWith('/meditation-seats')) return '/meditation-seats';
     if (pathname.startsWith('/reports')) return '/reports';
     return '/';

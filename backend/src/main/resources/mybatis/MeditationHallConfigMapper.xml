@@ -24,7 +24,6 @@
         <result column="is_auto_rows" property="isAutoRows"/>
         <result column="numbering_type" property="numberingType"/>
         <result column="seat_number_prefix" property="seatNumberPrefix"/>
-        <result column="seat_prefix" property="seatPrefix"/>
         <result column="gender_separated" property="genderSeparated"/>
         <result column="gender_type" property="genderType"/>
         <result column="monk_start_cell" property="monkStartCell"/>
@@ -41,7 +40,7 @@
         SELECT id, center_id, session_id, hall_name, region_name, region_code, valid_area,
                begin_cell, row_offset, col_offset, max_rows, max_cols, used_rows, used_cols,
                region_width, region_rows, is_auto_width, is_auto_rows,
-               numbering_type, seat_number_prefix, seat_prefix, gender_separated, gender_type,
+               numbering_type, seat_number_prefix, gender_separated, gender_type,
                monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
                dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
         FROM meditation_hall_config
@@ -52,7 +51,7 @@
         SELECT id, center_id, session_id, hall_name, region_name, region_code, valid_area,
                begin_cell, row_offset, col_offset, max_rows, max_cols, used_rows, used_cols,
                region_width, region_rows, is_auto_width, is_auto_rows,
-               numbering_type, seat_number_prefix, seat_prefix, gender_separated, gender_type,
+               numbering_type, seat_number_prefix, gender_separated, gender_type,
                monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
                dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
         FROM meditation_hall_config
@@ -63,7 +62,7 @@
         SELECT id, center_id, session_id, hall_name, region_name, region_code, valid_area,
                begin_cell, row_offset, col_offset, max_rows, max_cols, used_rows, used_cols,
                region_width, region_rows, is_auto_width, is_auto_rows,
-               numbering_type, seat_number_prefix, seat_prefix, gender_separated, gender_type,
+               numbering_type, seat_number_prefix, gender_separated, gender_type,
                monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
                dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
         FROM meditation_hall_config
@@ -74,7 +73,7 @@
         SELECT id, center_id, session_id, hall_name, region_name, region_code, valid_area,
                begin_cell, row_offset, col_offset, max_rows, max_cols, used_rows, used_cols,
                region_width, region_rows, is_auto_width, is_auto_rows,
-               numbering_type, seat_number_prefix, seat_prefix, gender_separated, gender_type,
+               numbering_type, seat_number_prefix, gender_separated, gender_type,
                monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
                dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
         FROM meditation_hall_config
@@ -85,13 +84,13 @@
         INSERT INTO meditation_hall_config (
             center_id, session_id, hall_name, region_name, region_code, valid_area, begin_cell, row_offset, col_offset,
             max_rows, max_cols, used_rows, used_cols, region_width, region_rows, is_auto_width, is_auto_rows,
-            numbering_type, seat_number_prefix, seat_prefix, gender_separated, gender_type,
+            numbering_type, seat_number_prefix, gender_separated, gender_type,
             monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
             dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
         ) VALUES (
             #{centerId}, #{sessionId}, #{hallName}, #{regionName}, #{regionCode}, #{validArea}, #{beginCell}, #{rowOffset}, #{colOffset},
             #{maxRows}, #{maxCols}, #{usedRows}, #{usedCols}, #{regionWidth}, #{regionRows}, #{isAutoWidth}, #{isAutoRows},
-            #{numberingType}, #{seatNumberPrefix}, #{seatPrefix}, #{genderSeparated}, #{genderType},
+            #{numberingType}, #{seatNumberPrefix}, #{genderSeparated}, #{genderType},
             #{monkStartCell}, #{monkMaxCount}, #{monkSeatPrefix}, #{oldStudentReservedList},
             #{dhammaWorkerArea1}, #{dhammaWorkerArea2}, NOW(), NOW()
         )
@@ -118,7 +117,6 @@
             is_auto_rows = #{isAutoRows},
             numbering_type = #{numberingType},
             seat_number_prefix = #{seatNumberPrefix},
-            seat_prefix = #{seatPrefix},
             gender_separated = #{genderSeparated},
             gender_type = #{genderType},
             monk_start_cell = #{monkStartCell},

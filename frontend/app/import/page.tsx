@@ -88,7 +88,7 @@ export default function ImportPage() {
         message.success(result.message);
         onSuccess?.(response.data, file as any);
       } else {
-        const errorMsg = response.data?.msg || response.data?.message || '导入失败';
+        const errorMsg = response.data?.message || '导入失败';
         message.error(errorMsg);
         onError?.(new Error(errorMsg));
       }

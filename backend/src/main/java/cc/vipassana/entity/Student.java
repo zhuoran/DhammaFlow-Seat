@@ -37,6 +37,10 @@ public class Student {
     private String idAddress;               // 证件地址
     private String willingToServe;          // 是否愿意服务
     private String emergencyPhone;          // 直系亲属电话
+    private String importId;                // 导入批次ID（防重复）
+    private LocalDateTime importTime;       // 导入时间（防重复）
+    private Boolean isDuplicate;            // 是否为重复学员（防重复）
+    private Long originalStudentId;         // 原始学员ID（防重复）
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

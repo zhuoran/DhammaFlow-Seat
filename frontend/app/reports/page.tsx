@@ -1,20 +1,28 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Card, Button, Space, Table, Row, Col, Statistic, Empty, Select, App } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Card, Button, Space, Table, Row, Col, Statistic, Empty, Select, App, Alert } from 'antd';
 import { DownloadOutlined, PrinterOutlined, FileExcelOutlined } from '@ant-design/icons';
 
 export default function Reports() {
   const { message } = App.useApp();
   const [reportType, setReportType] = useState<'bed' | 'meditation'>('bed');
   const [exporting, setExporting] = useState(false);
+  const [currentSession, setCurrentSession] = useState<any>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  const currentSession = typeof window !== 'undefined'
-    ? (() => {
-        const stored = localStorage.getItem('currentSession');
-        return stored ? JSON.parse(stored) : null;
-      })()
-    : null;
+  // 初始化：从 localStorage 读取当前会期
+  useEffect(() => {
+    const stored = localStorage.getItem('currentSession');
+    if (stored) {
+      setCurrentSession(JSON.parse(stored));
+    }
+    setIsHydrated(true);
+  }, []);
+
+  if (!isHydrated) {
+    return null;
+  }
 
   if (!currentSession) {
     return (
@@ -22,7 +30,14 @@ export default function Reports() {
         <div className="page-header">
           <h1>报表导出</h1>
         </div>
-        <Empty description="请先选择课程会期" style={{ marginTop: 50 }} />
+        <Alert
+          message="请先选择课程会期"
+          description="从顶部菜单栏选择要操作的禅修中心和课程会期后，可导出报表"
+          type="info"
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
+        <Empty description="暂无数据" style={{ marginTop: 50 }} />
       </div>
     );
   }

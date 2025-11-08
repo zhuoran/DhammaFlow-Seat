@@ -8,6 +8,12 @@
         status, notes, created_at, updated_at
     </sql>
 
+    <sql id="config_column">
+        teacher1_name, teacher2_name, course_date, location,
+        meditation_hall_a_width, meditation_hall_a_rows, meditation_hall_b_width, meditation_hall_b_rows,
+        course_gender_type, seat_numbering_type
+    </sql>
+
     <resultMap id="BaseResultMap" type="cc.vipassana.entity.Session">
         <id column="id" property="id"/>
         <result column="center_id" property="centerId"/>
@@ -61,5 +67,27 @@
     <select id="count" resultType="int">
         SELECT COUNT(*) FROM session
     </select>
+
+    <!-- 获取课程设置 -->
+    <select id="selectConfigById" resultType="cc.vipassana.dto.SessionConfigDTO">
+        SELECT <include refid="config_column"/> FROM session WHERE id = #{id}
+    </select>
+
+    <!-- 更新课程设置 -->
+    <update id="updateConfig">
+        UPDATE session SET
+            teacher1_name = #{config.teacher1Name},
+            teacher2_name = #{config.teacher2Name},
+            course_date = #{config.courseDate},
+            location = #{config.location},
+            meditation_hall_a_width = #{config.meditationHallAWidth},
+            meditation_hall_a_rows = #{config.meditationHallARows},
+            meditation_hall_b_width = #{config.meditationHallBWidth},
+            meditation_hall_b_rows = #{config.meditationHallBRows},
+            course_gender_type = #{config.courseGenderType},
+            seat_numbering_type = #{config.seatNumberingType},
+            updated_at = NOW()
+        WHERE id = #{sessionId}
+    </update>
 
 </mapper>

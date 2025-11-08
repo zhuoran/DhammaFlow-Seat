@@ -57,4 +57,16 @@ export const sessionApi = {
    */
   countSessions: () =>
     apiClient.get<ApiResponse<number>>('/sessions/count'),
+
+  /**
+   * 获取课程设置
+   */
+  getSessionConfig: (sessionId: number) =>
+    apiClient.get<ApiResponse<any>>(`/sessions/${sessionId}/config`),
+
+  /**
+   * 保存课程设置
+   */
+  saveSessionConfig: (sessionId: number, config: any) =>
+    apiClient.post<ApiResponse<void>>(`/sessions/${sessionId}/config`, config),
 };

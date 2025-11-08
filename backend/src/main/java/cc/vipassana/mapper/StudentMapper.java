@@ -37,6 +37,12 @@ public interface StudentMapper {
     Student selectByName(@Param("name") String name, @Param("sessionId") Long sessionId);
 
     /**
+     * 根据课程和身份证号查询学员
+     * 用于防重复导入检查（基于真实自然人的唯一标识）
+     */
+    Student selectBySessionAndIdCard(@Param("sessionId") Long sessionId, @Param("idCard") String idCard);
+
+    /**
      * 统计会话学员总数
      */
     int countBySessionId(@Param("sessionId") Long sessionId);
@@ -50,6 +56,11 @@ public interface StudentMapper {
      * 按同伴组查询学员
      */
     List<Student> selectByFellowGroupId(@Param("fellowGroupId") Integer fellowGroupId);
+
+    /**
+     * 按ID列表批量查询学员（用于优化N+1查询问题）
+     */
+    List<Student> selectByIds(@Param("ids") List<Long> ids);
 
     /**
      * 插入学员

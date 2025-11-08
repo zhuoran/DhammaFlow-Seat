@@ -1,5 +1,6 @@
 package cc.vipassana.mapper;
 
+import cc.vipassana.dto.SessionConfigDTO;
 import cc.vipassana.entity.Session;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -51,4 +52,14 @@ public interface SessionMapper {
      * 统计期次数量
      */
     int count();
+
+    /**
+     * 获取课程设置
+     */
+    SessionConfigDTO selectConfigById(@Param("id") Long id);
+
+    /**
+     * 更新课程设置
+     */
+    int updateConfig(@Param("sessionId") Long sessionId, @Param("config") SessionConfigDTO config);
 }

@@ -248,4 +248,38 @@ public class AllocationController {
                     "删除分配失败: " + e.getMessage(), null);
         }
     }
+
+    /**
+     * 交换两个学生的分配床位
+     *
+     * @param swapRequest 交换请求，包含两个分配ID
+     * @return 交换结果
+     */
+    @PostMapping("/swap")
+    public ResponseResult<Void> swapAllocations(@RequestBody SwapRequest swapRequest) {
+        try {
+            if (swapRequest.getAllocationId1() == null || swapRequest.getAllocationId2() == null) {
+                return new ResponseResult<>(SystemErrorCode.PARAM_ERROR.getCode(),
+                        "分配ID不能为空", null);
+            }
+
+            allocationService.swapAllocations(swapRequest.getAllocationId1(), swapRequest.getAllocationId2());
+            log.info("分配交换成功，ID1: {}, ID2: {}", swapRequest.getAllocationId1(), swapRequest.getAllocationId2());
+            return new ResponseResult<>(SystemErrorCode.SUCCESS.getCode(),
+                    "分配交换成功", null);
+        } catch (Exception e) {
+            log.error("交换分配失败", e);
+            return new ResponseResult<>(SystemErrorCode.BUSINESS_ERROR.getCode(),
+                    "交换分配失败: " + e.getMessage(), null);
+        }
+    }
+
+    /**
+     * 交换请求数据类
+     */
+    @lombok.Data
+    public static class SwapRequest {
+        private Long allocationId1;
+        private Long allocationId2;
+    }
 }

@@ -23,10 +23,11 @@ import {
 } from '@ant-design/icons';
 import { studentApi, roomApi, bedApi, allocationApi } from '@/services/api';
 
-interface AllocationDetail extends any {
+interface AllocationDetail {
   student?: any;
   bed?: any;
   room?: any;
+  [key: string]: any;
 }
 
 export default function ManualAllocationPage() {
@@ -73,7 +74,10 @@ export default function ManualAllocationPage() {
         currentCenter.id
       );
       if (studentsRes.data?.data) {
-        setStudents(studentsRes.data.data);
+        const studentList = Array.isArray(studentsRes.data.data)
+          ? studentsRes.data.data
+          : studentsRes.data.data?.list || [];
+        setStudents(studentList);
       }
 
       // 加载房间

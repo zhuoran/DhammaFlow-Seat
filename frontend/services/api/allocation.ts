@@ -64,4 +64,13 @@ export const allocationApi = {
    */
   rollbackAllocations: (sessionId: number) =>
     apiClient.post<ApiResponse<void>>(`/allocations/${sessionId}/rollback`),
+
+  /**
+   * 交换两个学生的床位
+   */
+  swapAllocations: (allocationId1: number, allocationId2: number) =>
+    apiClient.post<ApiResponse<void>>(`/allocations/swap`, {
+      allocationId1,
+      allocationId2,
+    }),
 };

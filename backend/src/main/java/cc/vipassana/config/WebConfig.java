@@ -13,15 +13,17 @@ public class WebConfig implements WebMvcConfigurer {
 
     /**
      * 配置CORS跨域请求
-     * 允许前端 localhost:3000/3001 访问后端 API
+     * 允许前端 localhost、本地IP 和 局域网IP 访问后端 API
      */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
+                // 允许所有 HTTP 和 HTTPS 请求源（开发环境）
+                // 生产环境应该改为具体的域名
+                .allowedOriginPatterns("*")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD")
                 .allowedHeaders("*")
-                .allowCredentials(true)
+                .allowCredentials(false)
                 .maxAge(3600);
     }
 }

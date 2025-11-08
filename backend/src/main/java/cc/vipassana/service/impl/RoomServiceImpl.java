@@ -96,7 +96,18 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     public boolean updateRoom(Room room) {
+        // 加载现有的房间数据，防止关键字段被覆盖
+        Room existingRoom = roomMapper.selectById(room.getId());
+        if (existingRoom == null) {
+            log.error("房间不存在: {}", room.getId());
+            return false;
+        }
+
+        // 保留centerId、createdAt等不应被修改的字段
+        room.setCenterId(existingRoom.getCenterId());
+        room.setCreatedAt(existingRoom.getCreatedAt());
         room.setUpdatedAt(LocalDateTime.now());
+
         int result = roomMapper.update(room);
         if (result > 0) {
             log.info("更新房间成功: {}", room.getId());

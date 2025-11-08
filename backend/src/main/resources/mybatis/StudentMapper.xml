@@ -8,7 +8,8 @@
         id, session_id, student_number, name, id_card, age, gender, age_group, city, phone,
         study_times, course_10day_times, course_4mindfulness_times, course_20day_times, course_30day_times,
         course_45day_times, service_times, fellow_list, fellow_group_id,
-        special_notes, practice, id_address, willing_to_serve, emergency_phone, created_at, updated_at
+        special_notes, practice, id_address, willing_to_serve, emergency_phone, created_at, updated_at,
+        import_id, import_time, is_duplicate, original_student_id
     </sql>
 
     <!-- 公共resultMap -->
@@ -39,6 +40,10 @@
         <result column="emergency_phone" property="emergencyPhone"/>
         <result column="created_at" property="createdAt"/>
         <result column="updated_at" property="updatedAt"/>
+        <result column="import_id" property="importId"/>
+        <result column="import_time" property="importTime"/>
+        <result column="is_duplicate" property="isDuplicate"/>
+        <result column="original_student_id" property="originalStudentId"/>
     </resultMap>
 
     <!-- 查询会话内所有学员 -->
@@ -46,7 +51,7 @@
         SELECT <include refid="base_column"/>
         FROM student
         WHERE session_id = #{sessionId}
-        ORDER BY name
+        ORDER BY student_number
     </select>
 
     <!-- 分页查询学员 -->
@@ -54,7 +59,7 @@
         SELECT <include refid="base_column"/>
         FROM student
         WHERE session_id = #{sessionId}
-        ORDER BY name
+        ORDER BY student_number
         LIMIT #{offset}, #{limit}
     </select>
 
@@ -70,6 +75,14 @@
         SELECT <include refid="base_column"/>
         FROM student
         WHERE name = #{name} AND session_id = #{sessionId}
+    </select>
+
+    <!-- 根据会话和身份证号查询学员（用于防重复检查） -->
+    <select id="selectBySessionAndIdCard" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM student
+        WHERE session_id = #{sessionId} AND id_card = #{idCard}
+        LIMIT 1
     </select>
 
     <!-- 统计会话学员总数 -->
@@ -106,6 +119,16 @@
         FROM student
         WHERE fellow_group_id = #{fellowGroupId}
         ORDER BY id
+    </select>
+
+    <!-- 按ID列表批量查询学员（优化N+1查询问题） -->
+    <select id="selectByIds" resultMap="BaseResultMap">
+        SELECT <include refid="base_column"/>
+        FROM student
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
     </select>
 
     <!-- 插入学员 -->

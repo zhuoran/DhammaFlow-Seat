@@ -70,7 +70,7 @@ export interface Room {
   building: string;
   floor: number;
   capacity: number;
-  roomType: 'monk' | 'old_student' | 'new_student' | 'other';
+  roomType: '学员房' | '义工房' | '老师房';
   status: 'enabled' | 'disabled';
   reserved: boolean;
   reservedFor?: string;
