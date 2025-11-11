@@ -72,13 +72,13 @@ public class ReportController {
             statistics.put("allocatedStudents", allocations.size());
             statistics.put("unallocatedStudents", students.size() - allocations.size());
 
-            // 按床位分组
-            Map<Long, List<Allocation>> byBed = allocations.stream()
-                    .collect(Collectors.groupingBy(Allocation::getBedId));
+            // 按房间分组（Bed 表已删除，现在按 roomId 分组）
+            Map<Long, List<Allocation>> byRoom = allocations.stream()
+                    .collect(Collectors.groupingBy(Allocation::getRoomId));
 
             report.put("statistics", statistics);
             report.put("allocations", allocations);
-            report.put("byBed", byBed);
+            report.put("byRoom", byRoom);
 
             log.info("生成房间分配报告，期次ID: {}", sessionId);
             return new ResponseResult<>(SystemErrorCode.SUCCESS.getCode(),

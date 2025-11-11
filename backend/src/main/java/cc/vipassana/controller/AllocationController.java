@@ -129,7 +129,7 @@ public class AllocationController {
      * @param sessionId 会话ID
      * @return 清除结果
      */
-    @DeleteMapping("/{sessionId}")
+    @DeleteMapping("/session/{sessionId}")
     public ResponseResult<Void> clearAllocations(@PathVariable Long sessionId) {
         try {
             if (sessionId == null) {

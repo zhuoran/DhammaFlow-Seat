@@ -22,7 +22,6 @@ public class AllocationServiceImpl implements AllocationService {
 
     private final StudentMapper studentMapper;
     private final RoomMapper roomMapper;
-    private final BedMapper bedMapper;
     private final AllocationMapper allocationMapper;
     private final FellowRelationMapper fellowRelationMapper;
     private final MeditationSeatMapper meditationSeatMapper;
@@ -88,6 +87,13 @@ public class AllocationServiceImpl implements AllocationService {
         return students;
     }
 
+    // 辅助类：表示可用床位 (roomId + bedNumber)
+    @lombok.Value
+    private static class AvailableBed {
+        Long roomId;
+        Integer bedNumber;
+    }
+
     /**
      * 核心分配算法：根据优先级和同伴关系分配床位
      */
@@ -104,19 +110,32 @@ public class AllocationServiceImpl implements AllocationService {
         }
 
         // 按性别区分创建床位队列：男性房间和女性房间
-        Queue<Bed> maleBedsQueue = new LinkedList<>();
-        Queue<Bed> femaleBedsQueue = new LinkedList<>();
+        Queue<AvailableBed> maleBedsQueue = new LinkedList<>();
+        Queue<AvailableBed> femaleBedsQueue = new LinkedList<>();
+
+        // 查询当前会期已分配的床位
+        List<Allocation> existingAllocations = allocationMapper.selectBySessionId(sessionId);
+        Set<String> occupiedBeds = existingAllocations.stream()
+            .map(a -> a.getRoomId() + "-" + a.getBedNumber())
+            .collect(Collectors.toSet());
 
         for (Room room : availableRooms) {
-            List<Bed> beds = bedMapper.selectAvailableByRoomId(room.getId());
+            // 根据房间容量生成可用床位
+            List<AvailableBed> availableBeds = new ArrayList<>();
+            for (int i = 1; i <= room.getCapacity(); i++) {
+                String bedKey = room.getId() + "-" + i;
+                if (!occupiedBeds.contains(bedKey)) {
+                    availableBeds.add(new AvailableBed(room.getId(), i));
+                }
+            }
 
             // 根据房间的性别区域分类床位（支持"男"/"男众"和"女"/"女众"）
             if (room.getGenderArea() != null && room.getGenderArea().contains("男")) {
-                maleBedsQueue.addAll(beds);
-                log.debug("房间 {} ({}): 添加 {} 张床位", room.getRoomNumber(), room.getGenderArea(), beds.size());
+                maleBedsQueue.addAll(availableBeds);
+                log.debug("房间 {} ({}): 添加 {} 张床位", room.getRoomNumber(), room.getGenderArea(), availableBeds.size());
             } else if (room.getGenderArea() != null && room.getGenderArea().contains("女")) {
-                femaleBedsQueue.addAll(beds);
-                log.debug("房间 {} ({}): 添加 {} 张床位", room.getRoomNumber(), room.getGenderArea(), beds.size());
+                femaleBedsQueue.addAll(availableBeds);
+                log.debug("房间 {} ({}): 添加 {} 张床位", room.getRoomNumber(), room.getGenderArea(), availableBeds.size());
             }
         }
 
@@ -126,20 +145,21 @@ public class AllocationServiceImpl implements AllocationService {
 
         // 分配学员到床位 - 按性别分离
         for (Student student : students) {
-            Queue<Bed> studentBedQueue = "M".equals(student.getGender()) ? maleBedsQueue : femaleBedsQueue;
+            Queue<AvailableBed> studentBedQueue = "M".equals(student.getGender()) ? maleBedsQueue : femaleBedsQueue;
 
             if (studentBedQueue.isEmpty()) {
                 log.warn("无可用床位 [{}]: 无法分配学员: {}", "M".equals(student.getGender()) ? "男" : "女", student.getName());
                 continue;
             }
 
-            Bed bed = studentBedQueue.poll();
+            AvailableBed bed = studentBedQueue.poll();
             try {
                 // 创建分配记录
                 Allocation allocation = Allocation.builder()
                     .sessionId(sessionId)
                     .studentId(student.getId())
-                    .bedId(bed.getId())
+                    .roomId(bed.getRoomId())
+                    .bedNumber(bed.getBedNumber())
                     .allocationType("AUTOMATIC")
                     .allocationReason("自动分配")
                     .isTemporary(true)
@@ -147,14 +167,13 @@ public class AllocationServiceImpl implements AllocationService {
                     .build();
 
                 allocationMapper.insert(allocation);
-                bedMapper.updateStatus(bed.getId(), "OCCUPIED");
                 allocatedCount++;
 
-                log.debug("已分配: {} ({}) -> 房间床位ID: {}", student.getName(),
-                    "M".equals(student.getGender()) ? "男" : "女", bed.getId());
+                log.debug("已分配: {} ({}) -> 房间ID: {}, 床位: {}", student.getName(),
+                    "M".equals(student.getGender()) ? "男" : "女", bed.getRoomId(), bed.getBedNumber());
 
             } catch (Exception e) {
-                log.error("分配失败: {} -> 床位ID: {}", student.getName(), bed.getId(), e);
+                log.error("分配失败: {} -> 房间ID: {}, 床位: {}", student.getName(), bed.getRoomId(), bed.getBedNumber(), e);
                 studentBedQueue.offer(bed); // 返还床位到对应的性别队列
             }
         }
@@ -197,11 +216,8 @@ public class AllocationServiceImpl implements AllocationService {
                     Allocation fellowAlloc = allocationMapper.selectByStudentId(fellow.getId());
 
                     if (studentAlloc != null && fellowAlloc != null) {
-                        Bed studentBed = bedMapper.selectById(studentAlloc.getBedId());
-                        Bed fellowBed = bedMapper.selectById(fellowAlloc.getBedId());
-
-                        if (studentBed != null && fellowBed != null &&
-                            !studentBed.getRoomId().equals(fellowBed.getRoomId())) {
+                        // Allocation 现在直接包含 roomId，不需要查询 Bed 表
+                        if (!studentAlloc.getRoomId().equals(fellowAlloc.getRoomId())) {
                             AllocationService.AllocationConflict conflict = new AllocationService.AllocationConflict();
                             conflict.studentId = student.getId();
                             conflict.studentName = student.getName();
@@ -228,24 +244,7 @@ public class AllocationServiceImpl implements AllocationService {
     @Override
     @Transactional
     public void disruptBedOrder(Long roomId) {
-        log.debug("应用打乱床位算法，房间ID: {}", roomId);
-        List<Bed> beds = bedMapper.selectByRoomId(roomId);
-
-        if (beds.isEmpty()) {
-            log.warn("房间内没有床位，房间ID: {}", roomId);
-            return;
-        }
-
-        // Fisher-Yates 洗牌算法
-        Random random = new Random();
-        for (int i = beds.size() - 1; i > 0; i--) {
-            int j = random.nextInt(i + 1);
-            Bed temp = beds.get(i);
-            beds.set(i, beds.get(j));
-            beds.set(j, temp);
-        }
-
-        log.debug("床位打乱完成，房间ID: {}，共 {} 张床", roomId, beds.size());
+        log.debug("床位顺序由 Room.capacity 推导，跳过打乱操作，房间ID: {}", roomId);
     }
 
     /**
@@ -347,8 +346,14 @@ public class AllocationServiceImpl implements AllocationService {
     @Transactional
     public void clearAllocations(Long sessionId) {
         log.info("清除分配，期次ID: {}", sessionId);
-        allocationMapper.deleteBySessionId(sessionId);
+
+        // 删除分配记录（不再需要重置床位状态，状态通过 Allocation 表推导）
+        int deletedCount = allocationMapper.deleteBySessionId(sessionId);
+
+        // 删除禅修座位记录
         meditationSeatMapper.deleteBySessionId(sessionId);
+
+        log.info("清除分配完成，删除 {} 条分配记录", deletedCount);
     }
 
     @Override
@@ -372,7 +377,8 @@ public class AllocationServiceImpl implements AllocationService {
     @Override
     @Transactional
     public Long createAllocation(Allocation allocation) {
-        log.info("创建分配，学员ID: {}，床位ID: {}", allocation.getStudentId(), allocation.getBedId());
+        log.info("创建分配，学员ID: {}，房间ID: {}，床位号: {}",
+            allocation.getStudentId(), allocation.getRoomId(), allocation.getBedNumber());
 
         // 设置默认值
         if (allocation.getAllocationType() == null) {
@@ -395,11 +401,8 @@ public class AllocationServiceImpl implements AllocationService {
             throw new RuntimeException("学员已分配");
         }
 
-        // 更新床位状态
+        // 创建分配记录（不再需要更新床位状态）
         allocationMapper.insert(allocation);
-        if (allocation.getBedId() != null) {
-            bedMapper.updateStatus(allocation.getBedId(), "OCCUPIED");
-        }
 
         log.info("分配创建成功，ID: {}", allocation.getId());
         return allocation.getId();
@@ -415,12 +418,7 @@ public class AllocationServiceImpl implements AllocationService {
             throw new RuntimeException("分配不存在");
         }
 
-        // 如果修改了床位，需要更新旧床位状态为可用
-        if (!existing.getBedId().equals(allocation.getBedId())) {
-            bedMapper.updateStatus(existing.getBedId(), "AVAILABLE");
-            bedMapper.updateStatus(allocation.getBedId(), "OCCUPIED");
-        }
-
+        // 更新分配记录（不再需要更新床位状态，状态通过 Allocation 表推导）
         allocation.setId(id);
         allocationMapper.update(allocation);
 
@@ -437,11 +435,7 @@ public class AllocationServiceImpl implements AllocationService {
             throw new RuntimeException("分配不存在");
         }
 
-        // 恢复床位为可用
-        if (existing.getBedId() != null) {
-            bedMapper.updateStatus(existing.getBedId(), "AVAILABLE");
-        }
-
+        // 删除分配记录（不再需要更新床位状态，状态通过 Allocation 表推导）
         allocationMapper.delete(id);
 
         log.info("分配删除成功，ID: {}", id);
@@ -468,22 +462,21 @@ public class AllocationServiceImpl implements AllocationService {
             throw new RuntimeException("分配2不存在，ID: " + allocationId2);
         }
 
-        // 获取学员和床位信息进行验证
+        // 获取学员信息进行验证
         Student student1 = studentMapper.selectById(allocation1.getStudentId());
         Student student2 = studentMapper.selectById(allocation2.getStudentId());
-        Bed bed1 = bedMapper.selectById(allocation1.getBedId());
-        Bed bed2 = bedMapper.selectById(allocation2.getBedId());
 
         if (student1 == null || student2 == null) {
             throw new RuntimeException("学员不存在");
         }
-        if (bed1 == null || bed2 == null) {
-            throw new RuntimeException("床位不存在");
-        }
 
-        // 获取两个床位所在的房间
-        Room room1 = roomMapper.selectById(bed1.getRoomId());
-        Room room2 = roomMapper.selectById(bed2.getRoomId());
+        // 获取两个房间（Allocation 直接包含 roomId）
+        Room room1 = roomMapper.selectById(allocation1.getRoomId());
+        Room room2 = roomMapper.selectById(allocation2.getRoomId());
+
+        if (room1 == null || room2 == null) {
+            throw new RuntimeException("房间不存在");
+        }
 
         // 验证性别匹配性
         if (room1 != null && "男".equals(room1.getGenderArea()) && "F".equals(student2.getGender())) {
@@ -499,10 +492,13 @@ public class AllocationServiceImpl implements AllocationService {
             throw new RuntimeException("男生不能分配到女生房间");
         }
 
-        // 交换床位
-        Long tempBedId = allocation1.getBedId();
-        allocation1.setBedId(allocation2.getBedId());
-        allocation2.setBedId(tempBedId);
+        // 交换房间和床位
+        Long tempRoomId = allocation1.getRoomId();
+        Integer tempBedNumber = allocation1.getBedNumber();
+        allocation1.setRoomId(allocation2.getRoomId());
+        allocation1.setBedNumber(allocation2.getBedNumber());
+        allocation2.setRoomId(tempRoomId);
+        allocation2.setBedNumber(tempBedNumber);
 
         // 更新分配记录
         allocationMapper.update(allocation1);

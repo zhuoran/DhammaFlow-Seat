@@ -4,10 +4,8 @@ import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.read.listener.ReadListener;
 import com.alibaba.excel.util.ListUtils;
 import cc.vipassana.dto.RoomBedImportDTO;
-import cc.vipassana.entity.Bed;
 import cc.vipassana.entity.Room;
 import cc.vipassana.mapper.RoomMapper;
-import cc.vipassana.mapper.BedMapper;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
@@ -16,15 +14,16 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * EasyExcel 房间床位导入监听器
- * 处理房间和床位的批量导入
+ * EasyExcel 房间导入监听器
+ * 处理房间的批量导入
  *
  * Excel 列格式: 楼层、房间号、房间类型、性别区域、容量(床位数)、备注
  *
  * 核心逻辑:
  * 1. 读取房间信息
- * 2. 自动生成床位 (根据容量: 1张=下铺, 2张=下+上, 3张=下+上+下, 4张=下+上+下+上)
- * 3. 批量保存房间和床位
+ * 2. 批量保存房间
+ *
+ * 注意: 床位不再单独存储，通过 Room.capacity 字段推导
  */
 @Slf4j
 public class RoomBedImportListener implements ReadListener<RoomBedImportDTO> {
@@ -34,23 +33,15 @@ public class RoomBedImportListener implements ReadListener<RoomBedImportDTO> {
      */
     private static final int BATCH_COUNT = 100;
 
-    /**
-     * 床位位置交替模式: 暂不使用
-     * 注: 目前系统支持普通床位而非上下铺，不再交替生成
-     */
-    // private static final String[] BED_POSITIONS = {"下铺", "上铺"};
-
     private List<RoomBedImportDTO> cachedDataList = ListUtils.newArrayListWithExpectedSize(BATCH_COUNT);
     private final RoomMapper roomMapper;
-    private final BedMapper bedMapper;
     private final Long centerId;
     private int successCount = 0;
     private int failureCount = 0;
     private Map<String, Long> roomIdMap = new HashMap<>();
 
-    public RoomBedImportListener(RoomMapper roomMapper, BedMapper bedMapper, Long centerId) {
+    public RoomBedImportListener(RoomMapper roomMapper, Long centerId) {
         this.roomMapper = roomMapper;
-        this.bedMapper = bedMapper;
         this.centerId = centerId;
     }
 
@@ -122,7 +113,7 @@ public class RoomBedImportListener implements ReadListener<RoomBedImportDTO> {
 
     /**
      * 处理一批房间数据
-     * 核心逻辑: 增量导入 - 检查房间是否存在 -> 创建房间 -> 创建床位
+     * 核心逻辑: 增量导入 - 检查房间是否存在 -> 创建房间
      */
     private void processBatch() {
         if (cachedDataList.isEmpty()) {
@@ -131,10 +122,9 @@ public class RoomBedImportListener implements ReadListener<RoomBedImportDTO> {
 
         try {
             List<Room> roomsToCreate = new java.util.ArrayList<>();
-            List<Bed> bedsToCreate = new java.util.ArrayList<>();
             int skippedCount = 0;
 
-            // 第一步: 检查房间是否已存在，只创建新房间
+            // 检查房间是否已存在，只创建新房间
             for (RoomBedImportDTO dto : cachedDataList) {
                 // 检查房间是否已存在
                 Room existingRoom = roomMapper.selectByRoomNumber(dto.getRoomNumber());
@@ -156,29 +146,6 @@ public class RoomBedImportListener implements ReadListener<RoomBedImportDTO> {
                 log.info("批量保存房间成功: {} 条", roomsToCreate.size());
             }
 
-            // 第二步: 为每个房间创建床位
-            for (RoomBedImportDTO dto : cachedDataList) {
-                Room room = roomMapper.selectByRoomNumber(dto.getRoomNumber());
-                if (room != null) {
-                    // 检查该房间是否已有床位
-                    int existingBedCount = bedMapper.countByRoomId(room.getId());
-
-                    if (existingBedCount == 0) {
-                        // 房间没有床位，创建新床位
-                        List<Bed> bedsForRoom = generateBedsForRoom(room.getId(), dto.getCapacity());
-                        bedsToCreate.addAll(bedsForRoom);
-                    } else {
-                        log.warn("房间 {} 已存在 {} 张床位，跳过创建", room.getRoomNumber(), existingBedCount);
-                    }
-                }
-            }
-
-            // 批量插入新床位
-            if (!bedsToCreate.isEmpty()) {
-                bedMapper.insertBatch(bedsToCreate);
-                log.info("批量保存床位成功: {} 条", bedsToCreate.size());
-            }
-
             // 统计成功数（只计算真正新创建的房间）
             successCount += roomsToCreate.size();
 
@@ -189,7 +156,7 @@ public class RoomBedImportListener implements ReadListener<RoomBedImportDTO> {
 
         } catch (Exception e) {
             failureCount += cachedDataList.size();
-            log.error("批量保存房间和床位失败: ", e);
+            log.error("批量保存房间失败: ", e);
         }
     }
 
@@ -241,30 +208,6 @@ public class RoomBedImportListener implements ReadListener<RoomBedImportDTO> {
                 }
             }
         };
-    }
-
-    /**
-     * 根据容量为房间生成床位
-     *
-     * 逻辑: 生成指定数量的普通床位（不区分上下铺）
-     * 例如：容量为2，就生成2张床位（床号1、床号2）
-     */
-    private List<Bed> generateBedsForRoom(Long roomId, Integer capacity) {
-        List<Bed> beds = new java.util.ArrayList<>();
-        LocalDateTime now = LocalDateTime.now();
-
-        for (int i = 0; i < capacity; i++) {
-            Bed bed = new Bed();
-            bed.setRoomId(roomId);
-            bed.setBedNumber(i + 1);
-            bed.setPosition("");  // 普通床位，不设置位置（上/下铺）
-            bed.setStatus("AVAILABLE");
-            bed.setCreatedAt(now);
-            bed.setUpdatedAt(now);
-            beds.add(bed);
-        }
-
-        return beds;
     }
 
     /**

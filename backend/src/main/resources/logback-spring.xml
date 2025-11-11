@@ -2,7 +2,7 @@
 <configuration>
 
     <!-- 定义日志文件的基础路径和名称 -->
-    <property name="LOG_HOME" value="/data/logs/" />
+    <property name="LOG_HOME" value="${LOG_HOME:logs}" />
     <property name="APP_NAME" value="flow-seat" />
     <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n" />
 

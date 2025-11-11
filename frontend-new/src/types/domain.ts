@@ -1,0 +1,144 @@
+export type StatusFlag = "ENABLED" | "DISABLED";
+
+export interface Center {
+  id: number;
+  centerName: string;
+  address?: string;
+  contactPhone?: string;
+  contactPerson?: string;
+  centerDescription?: string;
+  status?: "OPERATING" | "PAUSED" | "CLOSED";
+}
+
+export interface Session {
+  id: number;
+  centerId: number;
+  sessionCode: string;
+  courseType: string;
+  startDate: string;
+  endDate?: string;
+  expectedStudents?: number;
+  status?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type Gender = "M" | "F";
+
+export interface Student {
+  id: number;
+  sessionId: number;
+  centerId: number;
+  studentNumber?: string;
+  name: string;
+  gender: Gender;
+  age?: number;
+  idCard?: string;
+  city?: string;
+  phone?: string;
+  studentType: "monk" | "old_student" | "new_student";
+  course10dayTimes?: number;
+  course4mindfulnessTimes?: number;
+  course20dayTimes?: number;
+  course30dayTimes?: number;
+  course45dayTimes?: number;
+  serviceTimes?: number;
+  studyTimes?: number;
+  practice?: string;
+  fellowList?: string;
+  willingToServe?: string;
+  idAddress?: string;
+  specialNotes?: string;
+  emergencyPhone?: string;
+  priority?: number;
+  companion?: number;
+  status?: "registered" | "allocated" | "assigned_seat" | "checked_in" | "completed";
+  totalPractices?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type RoomType = "monk" | "old_student" | "new_student" | "other" | "学员房" | "义工房" | "老师房";
+export type GenderArea = "男" | "女";
+
+export interface Room {
+  id: number;
+  centerId: number;
+  roomNumber: string;
+  building: string;
+  floor: number;
+  capacity: number;
+  roomType: RoomType;
+  status: StatusFlag;
+  genderArea: GenderArea;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type BedPosition = "上铺" | "下铺" | "单床";
+export type BedStatus = "AVAILABLE" | "OCCUPIED" | "RESERVED";
+
+export interface Bed {
+  id: number;
+  roomId: number;
+  bedNumber: number;
+  position?: BedPosition;
+  status: BedStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Allocation {
+  id: number;
+  sessionId: number;
+  studentId: number;
+  bedId: number;
+  allocationType?: "MANUAL" | "AUTO";
+  allocationReason?: string;
+  conflictFlag?: boolean;
+  isTemporary?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AllocationWithRelations extends Allocation {
+  student?: Student;
+  bed?: Bed;
+  room?: Room;
+}
+
+export interface AllocationStats {
+  totalStudents: number;
+  allocatedStudents: number;
+  pendingStudents: number;
+  conflictCount: number;
+  allocationRate: number;
+}
+
+export interface AllocationConflict {
+  id: number;
+  sessionId: number;
+  studentId?: number;
+  conflictType: string;
+  description?: string;
+  status: "unresolved" | "resolved";
+  resolution?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ApiResponse<T = unknown> {
+  code: number;
+  message: string;
+  data?: T;
+  timestamp?: string;
+}
+
+export interface ListResult<T> {
+  list: T[];
+  total?: number;
+  page?: number;
+  size?: number;
+}

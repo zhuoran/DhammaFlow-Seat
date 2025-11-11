@@ -1,0 +1,9 @@
+export * as roomApi from "./rooms";
+export * as bedApi from "./beds";
+export * as studentApi from "./students";
+export * as centerApi from "./centers";
+export * as sessionApi from "./sessions";
+export * as allocationApi from "./allocations";
+export * as importApi from "./imports";
+export * as reportApi from "./reports";
+export * as meditationSeatApi from "./meditation-seats";

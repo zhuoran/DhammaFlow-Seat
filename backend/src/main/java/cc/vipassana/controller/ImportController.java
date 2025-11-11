@@ -7,7 +7,6 @@ import cc.vipassana.dto.RoomBedImportDTO;
 import cc.vipassana.dto.StudentImportDTO;
 import cc.vipassana.listener.RoomBedImportListener;
 import cc.vipassana.mapper.RoomMapper;
-import cc.vipassana.mapper.BedMapper;
 import cc.vipassana.service.StudentImportService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,9 +30,6 @@ public class ImportController {
 
     @Autowired
     private RoomMapper roomMapper;
-
-    @Autowired
-    private BedMapper bedMapper;
 
     @Autowired
     private StudentImportService studentImportService;
@@ -78,8 +74,8 @@ public class ImportController {
         }
 
         try {
-            // 创建监听器
-            RoomBedImportListener listener = new RoomBedImportListener(roomMapper, bedMapper, centerId);
+            // 创建监听器（床位不再单独存储，通过 Room.capacity 推导）
+            RoomBedImportListener listener = new RoomBedImportListener(roomMapper, centerId);
 
             // 读取 Excel 文件
             // 从第 12 行开始读取数据（跳过标题和说明）

@@ -14,7 +14,8 @@ public class Allocation {
     private Long id;
     private Long sessionId;           // 期次ID
     private Long studentId;           // 学员ID
-    private Long bedId;               // 床位ID
+    private Long roomId;              // 房间ID（替代 bedId）
+    private Integer bedNumber;        // 床位号（1, 2, 3...）
     private String allocationType;    // 分配类型：AUTOMATIC/MANUAL
     private String allocationReason;  // 分配原因
     private Boolean isTemporary;      // 是否暂存
