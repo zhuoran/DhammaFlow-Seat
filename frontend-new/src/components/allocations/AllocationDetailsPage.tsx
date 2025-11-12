@@ -5,9 +5,6 @@ import type { ColumnsType } from "antd/es/table";
 import { PageHeader } from "@/components/common/PageHeader";
 import { useAppContext } from "@/state/app-context";
 import { useAllocations, useRooms, useStudents } from "@/hooks/queries";
-import { bedApi } from "@/services/api";
-import { useEffect, useState } from "react";
-import type { Bed } from "@/types/domain";
 
 interface AllocationRow {
   id: number;
@@ -23,16 +20,6 @@ export function AllocationDetailsPage() {
   const allocationsQuery = useAllocations(currentSession?.id);
   const roomsQuery = useRooms(currentCenter?.id);
   const studentsQuery = useStudents(currentSession?.id);
-  const [beds, setBeds] = useState<Bed[]>([]);
-
-  useEffect(() => {
-    const loadBeds = async () => {
-      const all = await bedApi.fetchBeds();
-      setBeds(all);
-    };
-    loadBeds();
-  }, []);
-
   if (!currentSession || !currentCenter) {
     return (
       <Card>
@@ -43,18 +30,16 @@ export function AllocationDetailsPage() {
   }
 
   const roomMap = new Map(roomsQuery.data?.map((room) => [room.id, room]) ?? []);
-  const bedMap = new Map(beds.map((bed) => [bed.id, bed]));
   const studentMap = new Map(studentsQuery.data?.map((stu) => [stu.id, stu]) ?? []);
 
   const rows: AllocationRow[] =
     allocationsQuery.data?.map((alloc) => {
-      const bed = bedMap.get(alloc.bedId);
-      const room = bed ? roomMap.get(bed.roomId) : undefined;
+      const room = roomMap.get(alloc.roomId);
       const student = studentMap.get(alloc.studentId);
       return {
         id: alloc.id,
         roomNumber: room?.roomNumber,
-        bedNumber: bed?.bedNumber,
+        bedNumber: alloc.bedNumber,
         studentName: student?.name,
         studentType: student?.studentType,
         gender: student?.gender === "M" ? "男" : "女",

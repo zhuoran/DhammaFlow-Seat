@@ -10,6 +10,8 @@ import { allocationApi, bedApi } from "@/services/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { groupRoomsByFloor } from "@/lib/room-layout";
 import type { FloorRoomGroup } from "@/lib/room-layout";
+import { buildParityRenderPlan, type FloorRenderPlan } from "@/lib/room-visual";
+import { truncateText } from "@/lib/string";
 
 interface RoomCardData {
   room: Room;
@@ -54,7 +56,13 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
   }, []);
 
   const studentMap = useMemo(() => new Map(studentsQuery.data?.map((stu) => [stu.id, stu]) ?? []), [studentsQuery.data]);
-  const bedMap = useMemo(() => new Map(beds.map((bed) => [bed.id, bed])), [beds]);
+  const bedKeyMap = useMemo(() => {
+    const map = new Map<string, Bed>();
+    beds.forEach((bed) => {
+      map.set(`${bed.roomId}-${bed.bedNumber}`, bed);
+    });
+    return map;
+  }, [beds]);
 
   const normalizeGender = (value?: string | null): "female" | "male" | null => {
     if (!value) return null;
@@ -74,15 +82,39 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
     if (!roomsQuery.data) return [];
     return roomsQuery.data.map((room) => {
       const occupants =
-        allocationsQuery.data?.filter((alloc) => bedMap.get(alloc.bedId)?.roomId === room.id).map((alloc) => ({
-          allocationId: alloc.id,
-          student: studentMap.get(alloc.studentId),
-          bed: bedMap.get(alloc.bedId),
-        })) ?? [];
-      const roomBeds = beds.filter((bed) => bed.roomId === room.id);
+        allocationsQuery.data
+          ?.filter((alloc) => alloc.roomId === room.id)
+          .map((alloc) => {
+            const bedKey = `${room.id}-${alloc.bedNumber}`;
+            const matchedBed =
+              bedKeyMap.get(bedKey) ??
+              ({
+                id: room.id * 100 + alloc.bedNumber,
+                roomId: room.id,
+                bedNumber: alloc.bedNumber,
+                position: undefined,
+                status: "OCCUPIED",
+              } as Bed);
+            return {
+              allocationId: alloc.id,
+              student: studentMap.get(alloc.studentId),
+              bed: matchedBed,
+            };
+          }) ?? [];
+      const roomBedsRaw = beds.filter((bed) => bed.roomId === room.id);
+      const roomBeds: Bed[] =
+        roomBedsRaw.length > 0
+          ? roomBedsRaw
+          : Array.from({ length: room.capacity }, (_, idx) => ({
+              id: room.id * 100 + idx + 1,
+              roomId: room.id,
+              bedNumber: idx + 1,
+              position: undefined,
+              status: "AVAILABLE",
+            }));
       return { room, occupants, beds: roomBeds };
     });
-  }, [roomsQuery.data, allocationsQuery.data, bedMap, studentMap, beds]);
+  }, [roomsQuery.data, allocationsQuery.data, bedKeyMap, studentMap, beds]);
 
   const pendingStudents = useMemo(() => {
     const assignedIds = new Set(allocationsQuery.data?.map((alloc) => alloc.studentId));
@@ -136,8 +168,16 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
     [roomsByGender],
   );
 
-  const hasFemaleRooms = groupedByGender.female.length > 0;
-  const hasMaleRooms = groupedByGender.male.length > 0;
+  const renderPlans = useMemo(
+    () => ({
+      female: buildParityRenderPlan(groupedByGender.female),
+      male: buildParityRenderPlan(groupedByGender.male),
+    }),
+    [groupedByGender],
+  );
+
+  const hasFemaleRooms = renderPlans.female.length > 0;
+  const hasMaleRooms = renderPlans.male.length > 0;
 
   const activeViewMode = useMemo(() => {
     if (viewMode === "female" && !hasFemaleRooms && hasMaleRooms) {
@@ -190,10 +230,11 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
           {beds.map((bed) => {
             const occupant = occupants.find((occ) => occ.bed?.id === bed.id);
             const isSelected = occupant ? selectedForSwap.includes(occupant.allocationId) : false;
-            const detail =
-              [occupant?.student?.age ? `${occupant.student.age}岁` : null, occupant?.student?.city ?? null]
-                .filter(Boolean)
-                .join(" · ") || "信息不全";
+            const detailParts = [
+              occupant?.student?.age ? `${occupant.student.age}岁` : null,
+              occupant?.student?.city ? truncateText(occupant.student.city, 9) : null,
+            ].filter(Boolean);
+            const detail = detailParts.join(" · ") || "信息不全";
             return (
               <div
                 key={bed.id}
@@ -244,51 +285,52 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
   const renderRoomRow = (rooms: Room[]) => {
     if (!rooms.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该楼层暂无房间" />;
     return (
-      <div className="room-row">
-        {rooms.map((room) => {
-          const data = roomCardMap.get(room.id);
-          if (!data) return null;
-          return (
-            <div key={room.id} className="room-card-wrapper">
-              {renderRoomCard(data)}
-            </div>
-          );
-        })}
+      <div className="room-row-scroll">
+        <div className="room-row-track">
+          {rooms.map((room) => {
+            const data = roomCardMap.get(room.id);
+            if (!data) return null;
+            return (
+              <div key={room.id} className="room-card-wrapper">
+                {renderRoomCard(data)}
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   };
 
-  const renderFloorSections = (groups: FloorRoomGroup[]) => {
-    if (!groups.length) {
+  const renderFloorSections = (plans: FloorRenderPlan[]) => {
+    if (!plans.length) {
       return <Empty description="当前性别暂无房间" />;
     }
-    return groups.map((group) => (
-      <Card key={group.floor} className="floor-card" title={`第 ${group.floor} 层`}>
-        {group.evenRooms.length > 0 && (
-          <div className="room-section even-rooms">{renderRoomRow(group.evenRooms)}</div>
-        )}
-        {group.evenRooms.length > 0 && group.oddRooms.length > 0 && (
-          <div className="room-divider" />
-        )}
-        {group.oddRooms.length > 0 && (
-          <div className="room-section odd-rooms">{renderRoomRow(group.oddRooms)}</div>
-        )}
-        {group.evenRooms.length === 0 && group.oddRooms.length === 0 && (
+    return plans.map((plan) => (
+      <Card key={plan.floor} className="floor-card" title={`第 ${plan.floor} 层`}>
+        {plan.sections.map((section, index) => (
+          <div key={section.key} className="room-section">
+            <div className="row-label">{section.label}</div>
+            {renderRoomRow(section.rooms)}
+            {index < plan.sections.length - 1 && <div className="room-divider" />}
+          </div>
+        ))}
+        {plan.sections.length === 0 && (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该楼层暂无房间" className="floor-empty" />
         )}
       </Card>
     ));
   };
 
-  const summarizeGroups = (groups: FloorRoomGroup[]) =>
-    groups.reduce(
-      (acc, group) => {
-        const rooms = [...group.evenRooms, ...group.oddRooms];
-        rooms.forEach((room) => {
-          const card = roomCardMap.get(room.id);
-          const roomBeds = card?.beds ?? beds.filter((bed) => bed.roomId === room.id);
-          acc.capacity += roomBeds.length;
-          acc.occupied += card?.occupants.length ?? 0;
+  const summarizePlans = (plans: FloorRenderPlan[]) =>
+    plans.reduce(
+      (acc, plan) => {
+        plan.sections.forEach((section) => {
+          section.rooms.forEach((room) => {
+            const card = roomCardMap.get(room.id);
+            const roomBeds = card?.beds ?? beds.filter((bed) => bed.roomId === room.id);
+            acc.capacity += roomBeds.length;
+            acc.occupied += card?.occupants.length ?? 0;
+          });
         });
         return acc;
       },
@@ -310,7 +352,8 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
       await allocationApi.createAllocation({
         sessionId: currentSession.id,
         studentId: selectedStudentId,
-        bedId: assignModal.bed.id,
+        roomId: assignModal.room.id,
+        bedNumber: assignModal.bed.bedNumber ?? 1,
         allocationType: "MANUAL",
       });
       message.success("指派成功");
@@ -504,10 +547,10 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
                     const alloc2 = allocationsQuery.data?.find((a) => a.id === selectedForSwap[1]);
                     const student1 = alloc1 ? studentMap.get(alloc1.studentId) : null;
                     const student2 = alloc2 ? studentMap.get(alloc2.studentId) : null;
-                    const bed1 = alloc1 ? bedMap.get(alloc1.bedId) : null;
-                    const bed2 = alloc2 ? bedMap.get(alloc2.bedId) : null;
-                    const room1 = bed1 ? roomsQuery.data?.find((r) => r.id === bed1.roomId) : null;
-                    const room2 = bed2 ? roomsQuery.data?.find((r) => r.id === bed2.roomId) : null;
+                    const room1 = alloc1 ? roomsQuery.data?.find((r) => r.id === alloc1.roomId) : null;
+                    const room2 = alloc2 ? roomsQuery.data?.find((r) => r.id === alloc2.roomId) : null;
+                    const bed1 = alloc1 ? bedKeyMap.get(`${alloc1.roomId}-${alloc1.bedNumber}`) : null;
+                    const bed2 = alloc2 ? bedKeyMap.get(`${alloc2.roomId}-${alloc2.bedNumber}`) : null;
                     return (
                       <strong>
                         {student1?.name ?? "未知"}({room1?.building ?? ""}{room1?.roomNumber ?? ""}-床{bed1?.bedNumber ?? ""})
@@ -543,13 +586,13 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
                 setSelectedForSwap([]);
               }}
               items={(["female", "male"] as const).map((genderKey) => {
-                const groups = groupedByGender[genderKey];
-                const summary = summarizeGroups(groups);
+                const plans = renderPlans[genderKey];
+                const summary = summarizePlans(plans);
                 const label = `${genderKey === "female" ? "女众" : "男众"}（${summary.occupied}/${summary.capacity || 0}）`;
                 return {
                   key: genderKey,
                   label,
-                  children: renderFloorSections(groups),
+                  children: renderFloorSections(plans),
                 };
               })}
             />
@@ -650,21 +693,22 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
           margin: 12px 0;
         }
         .room-section {
-          margin-bottom: 0;
+          margin-bottom: 8px;
         }
         .room-divider {
-          margin: 20px 0;
+          margin: 16px 0;
           border-bottom: 2px dashed #d9d9d9;
         }
-        :global(.room-row) {
-          display: grid !important;
-          grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
-          gap: 16px !important;
-          padding-bottom: 0;
+        :global(.room-row-scroll) {
+          overflow-x: auto;
+          padding-bottom: 8px;
+        }
+        :global(.room-row-track) {
+          display: flex;
+          gap: 16px;
         }
         :global(.room-card-wrapper) {
-          min-width: 220px;
-          max-width: 320px;
+          flex: 0 0 260px;
         }
         :global(.room-card) {
           border-radius: 12px;

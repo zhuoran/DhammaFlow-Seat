@@ -94,8 +94,9 @@ export interface Allocation {
   id: number;
   sessionId: number;
   studentId: number;
-  bedId: number;
-  allocationType?: "MANUAL" | "AUTO";
+  roomId: number;
+  bedNumber: number;
+  allocationType?: "MANUAL" | "AUTOMATIC";
   allocationReason?: string;
   conflictFlag?: boolean;
   isTemporary?: boolean;
@@ -105,8 +106,8 @@ export interface Allocation {
 
 export interface AllocationWithRelations extends Allocation {
   student?: Student;
-  bed?: Bed;
   room?: Room;
+  bed?: Bed;
 }
 
 export interface AllocationStats {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Alert, Button, Card, Col, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Tag, message } from "antd";
+import { Alert, App, Button, Card, Col, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import type { Bed, Room } from "@/types/domain";
@@ -24,11 +24,13 @@ interface RoomStats {
 }
 
 export function RoomsPage() {
+  const { message } = App.useApp();
   const { currentCenter } = useAppContext();
   const { data: rooms, isLoading, refetch } = useRooms(currentCenter?.id);
   const mutation = useRoomMutations(currentCenter?.id ?? 0);
   const [filterGender, setFilterGender] = useState<string>();
   const [filterFloor, setFilterFloor] = useState<number | null>(null);
+  const [filterRoomType, setFilterRoomType] = useState<string>();
   const [roomModalOpen, setRoomModalOpen] = useState(false);
   const [bedModalOpen, setBedModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
@@ -74,9 +76,10 @@ export function RoomsPage() {
     return rooms?.filter((room) => {
       if (filterGender && room.genderArea !== filterGender) return false;
       if (filterFloor !== null && room.floor !== filterFloor) return false;
+      if (filterRoomType && room.roomType !== filterRoomType) return false;
       return true;
     });
-  }, [rooms, filterGender, filterFloor]);
+  }, [rooms, filterGender, filterFloor, filterRoomType]);
 
   const floorOptions = useMemo(() => {
     const floors = Array.from(new Set(rooms?.map((room) => room.floor) ?? []));
@@ -272,6 +275,22 @@ export function RoomsPage() {
             options={floorOptions}
             onChange={(value) => setFilterFloor(value ?? null)}
           />
+          <Select
+            placeholder="按房间类型过滤"
+            style={{ width: 220 }}
+            allowClear
+            value={filterRoomType}
+            options={[
+              { value: "法师房", label: "法师房" },
+              { value: "旧生房", label: "旧生房" },
+              { value: "新生房", label: "新生房" },
+              { value: "老人房", label: "老人房" },
+              { value: "老师房", label: "老师房" },
+              { value: "义工房", label: "义工房" },
+              { value: "其他", label: "其他" },
+            ]}
+            onChange={setFilterRoomType}
+          />
         </Space>
 
         <Table<Room>
@@ -340,10 +359,13 @@ export function RoomsPage() {
           <Form.Item name="roomType" label="房间类型" rules={[{ required: true }]}>
             <Select
               options={[
-                { value: "monk", label: "法师房" },
-                { value: "old_student", label: "旧生房" },
-                { value: "new_student", label: "新生房" },
-                { value: "other", label: "其他" },
+                { value: "法师房", label: "法师房" },
+                { value: "旧生房", label: "旧生房" },
+                { value: "新生房", label: "新生房" },
+                { value: "老人房", label: "老人房" },
+                { value: "老师房", label: "老师房" },
+                { value: "义工房", label: "义工房" },
+                { value: "其他", label: "其他" },
               ]}
             />
           </Form.Item>

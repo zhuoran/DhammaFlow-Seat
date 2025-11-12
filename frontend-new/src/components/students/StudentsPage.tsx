@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  App,
   Button,
   Card,
   Empty,
@@ -13,7 +14,6 @@ import {
   Table,
   Upload,
   UploadProps,
-  message,
   Popconfirm,
 } from "antd";
 import { UploadOutlined, EditOutlined, DeleteOutlined, UserAddOutlined } from "@ant-design/icons";
@@ -25,6 +25,7 @@ import { useStudents, useStudentMutations } from "@/hooks/queries";
 import { studentApi } from "@/services/api";
 
 export function StudentsPage() {
+  const { message } = App.useApp();
   const { currentSession } = useAppContext();
   const { data: students, isLoading, refetch } = useStudents(currentSession?.id);
   const [editModalOpen, setEditModalOpen] = useState(false);

@@ -10,7 +10,16 @@
 
     <sql id="config_column">
         teacher1_name, teacher2_name, course_date, location,
-        meditation_hall_a_width, meditation_hall_a_rows, meditation_hall_b_width, meditation_hall_b_rows,
+        meditation_hall_a_width,
+        CASE
+            WHEN meditation_hall_a_rows REGEXP '^[0-9]+$' THEN CAST(meditation_hall_a_rows AS UNSIGNED)
+            ELSE NULL
+        END AS meditation_hall_a_rows,
+        meditation_hall_b_width,
+        CASE
+            WHEN meditation_hall_b_rows REGEXP '^[0-9]+$' THEN CAST(meditation_hall_b_rows AS UNSIGNED)
+            ELSE NULL
+        END AS meditation_hall_b_rows,
         course_gender_type, seat_numbering_type
     </sql>
 

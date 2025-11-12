@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Alert, Button, Card, Empty, Result, Space, Steps, Upload, message } from "antd";
+import { Alert, App, Button, Card, Empty, Result, Space, Steps, Upload } from "antd";
 import type { UploadProps } from "antd";
 import { InboxOutlined, DownloadOutlined } from "@ant-design/icons";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -9,6 +9,7 @@ import { useAppContext } from "@/state/app-context";
 import { importApi } from "@/services/api";
 
 export function RoomImportPage() {
+  const { message } = App.useApp();
   const { currentCenter } = useAppContext();
   const [step, setStep] = useState(0);
   const [result, setResult] = useState<{ successCount: number; failureCount: number; totalCount: number } | null>(null);
