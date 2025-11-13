@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { App, Button, Card, Col, Empty, Input, Modal, Row, Segmented, Space, Tag, Typography, Statistic, Select, Tabs, Alert } from "antd";
-import { DeleteOutlined, DashboardOutlined, PlayCircleOutlined } from "@ant-design/icons";
+import { DeleteOutlined, PlayCircleOutlined, PrinterOutlined } from "@ant-design/icons";
 import type { Bed, Room, Student } from "@/types/domain";
 import { useAppContext } from "@/state/app-context";
 import { useAllocations, useRooms, useStudents } from "@/hooks/queries";
 import { allocationApi, bedApi } from "@/services/api";
 import { PageHeader } from "@/components/common/PageHeader";
 import { groupRoomsByFloor } from "@/lib/room-layout";
-import type { FloorRoomGroup } from "@/lib/room-layout";
 import { buildParityRenderPlan, type FloorRenderPlan } from "@/lib/room-visual";
 import { truncateText } from "@/lib/string";
 
@@ -27,6 +26,33 @@ interface OccupantEntry {
 
 
 type BoardMode = "workspace" | "overview";
+
+const STAFF_ROOM_TAGS: Partial<Record<
+  Room["roomType"],
+  {
+    label: string;
+    color: string;
+  }
+>> = {
+  老师房: { label: "老师房", color: "gold" },
+  义工房: { label: "义工房", color: "cyan" },
+};
+
+const isStaffRoomType = (roomType?: Room["roomType"]) => Boolean(roomType && STAFF_ROOM_TAGS[roomType]);
+
+const normalizeGender = (value?: string | null): "female" | "male" | null => {
+  if (!value) return null;
+  const text = value.toLowerCase();
+  if (text.includes("女") || text.startsWith("f") || text.includes("female")) {
+    return "female";
+  }
+  if (text.includes("男") || text.startsWith("m") || text.includes("male")) {
+    return "male";
+  }
+  return null;
+};
+
+const getRoomGenderKey = (room: Room): "female" | "male" | null => normalizeGender(room.genderArea);
 
 interface RoomBoardProps {
   initialView?: BoardMode;
@@ -64,19 +90,28 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
     return map;
   }, [beds]);
 
-  const normalizeGender = (value?: string | null): "female" | "male" | null => {
-    if (!value) return null;
-    const text = value.toLowerCase();
-    if (text.includes("女") || text.startsWith("f") || text.includes("female")) {
-      return "female";
-    }
-    if (text.includes("男") || text.startsWith("m") || text.includes("male")) {
-      return "male";
-    }
-    return null;
-  };
-
-  const getRoomGenderKey = (room: Room): "female" | "male" | null => normalizeGender(room.genderArea);
+  const getCompanionLabel = useCallback(
+    (student?: Student) => {
+      if (!student) return null;
+      if (student.companion) {
+        const companionStudent = studentMap.get(student.companion);
+        if (companionStudent?.name) {
+          return companionStudent.name;
+        }
+      }
+      if (student.fellowList) {
+        const candidate = student.fellowList
+          .split(/[,，、\s]+/)
+          .map((name) => name.trim())
+          .filter((name) => name && name !== student.name)[0];
+        if (candidate) {
+          return candidate;
+        }
+      }
+      return null;
+    },
+    [studentMap],
+  );
 
   const roomCards: RoomCardData[] = useMemo(() => {
     if (!roomsQuery.data) return [];
@@ -203,10 +238,20 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
     const genderLabel = genderKey === "female" ? "女众" : "男众";
     const occupancyStatus =
       occupants.length === 0 ? "empty" : occupants.length >= room.capacity ? "full" : "partial";
+    const staffTag = room.roomType ? STAFF_ROOM_TAGS[room.roomType] : undefined;
+    const manualOpsAllowed = isInteractive && !isStaffRoomType(room.roomType);
+    const cardClassName = [
+      "room-card",
+      occupancyStatus,
+      room.capacity === 1 ? "single-room" : "",
+      staffTag ? "staff-room" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
     return (
       <Card
         size="small"
-        className={`room-card ${occupancyStatus} ${room.capacity === 1 ? "single-room" : ""}`}
+        className={cardClassName}
         styles={{ body: { padding: 12 } }}
         hoverable
         title={
@@ -220,8 +265,15 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {staffTag && (
+                <Tag color={staffTag.color} bordered={false}>
+                  {staffTag.label}
+                </Tag>
+              )}
               <Tag color={genderKey === "female" ? "magenta" : "blue"}>{genderLabel}</Tag>
-              <span className="room-occupancy">{occupants.length} / {room.capacity}</span>
+              <span className="room-occupancy">
+                {occupants.length} / {room.capacity}
+              </span>
             </div>
           </div>
         }
@@ -229,22 +281,33 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
         <div className="room-grid">
           {beds.map((bed) => {
             const occupant = occupants.find((occ) => occ.bed?.id === bed.id);
-            const isSelected = occupant ? selectedForSwap.includes(occupant.allocationId) : false;
+            const isSelected = manualOpsAllowed && occupant ? selectedForSwap.includes(occupant.allocationId) : false;
+            const companionLabel = occupant ? getCompanionLabel(occupant.student) : null;
             const detailParts = [
               occupant?.student?.age ? `${occupant.student.age}岁` : null,
               occupant?.student?.city ? truncateText(occupant.student.city, 9) : null,
             ].filter(Boolean);
             const detail = detailParts.join(" · ") || "信息不全";
+            const slotClassName = [gridClass(Boolean(occupant), isSelected), manualOpsAllowed ? "" : "disabled"]
+              .filter(Boolean)
+              .join(" ");
+            const handleSlotClick = () => {
+              if (!manualOpsAllowed) return;
+              if (occupant) {
+                handleOccupantClick(occupant.allocationId);
+              } else {
+                openAssignModal(room, bed);
+              }
+            };
             return (
-              <div
-                key={bed.id}
-                className={gridClass(Boolean(occupant), isSelected)}
-                onClick={() => (occupant ? handleOccupantClick(occupant.allocationId) : openAssignModal(room, bed))}
-              >
+              <div key={bed.id} className={slotClassName} onClick={handleSlotClick}>
                 {occupant ? (
-                  <Space direction="vertical" size={4} style={{ pointerEvents: isInteractive ? "auto" : "none" }}>
+                  <Space direction="vertical" size={4} style={{ pointerEvents: manualOpsAllowed ? "auto" : "none" }}>
                     <Space align="center" size={6}>
-                      <Typography.Text strong>{occupant.student?.name ?? "未知"}</Typography.Text>
+                      <Typography.Text strong>
+                        {occupant.student?.name ?? "未知"}
+                        {companionLabel ? `（${companionLabel}）` : ""}
+                      </Typography.Text>
                       {bed.bedNumber !== undefined && (
                         <Tag size="small" color="geekblue" bordered={false}>
                           床 {bed.bedNumber}
@@ -254,11 +317,12 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
                     <Typography.Text type="secondary" className="bed-detail">
                       {detail}
                     </Typography.Text>
-                    {isInteractive && (
+                    {manualOpsAllowed && (
                       <Button
                         size="small"
                         type="text"
                         danger
+                        disabled={!manualOpsAllowed}
                         icon={<DeleteOutlined />}
                         onClick={(e) => handleRemove(occupant.allocationId, e)}
                       >
@@ -270,7 +334,7 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
                   <Space direction="vertical" size={2}>
                     <Typography.Text type="secondary">空床 {bed.bedNumber ?? ""}</Typography.Text>
                     <Typography.Text type="secondary" className="bed-detail muted">
-                      点击指派学员
+                      {manualOpsAllowed ? "点击指派学员" : "内部房间不可指派"}
                     </Typography.Text>
                   </Space>
                 )}
@@ -338,7 +402,7 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
     );
 
   const openAssignModal = (room: Room, bed: Bed) => {
-    if (!isInteractive) return;
+    if (!isInteractive || isStaffRoomType(room.roomType)) return;
     setAssignModal({ room, bed });
     setSelectedStudentId(undefined);
   };
@@ -491,6 +555,9 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
                 setSelectedForSwap([]);
               }}
             />
+            <Button icon={<PrinterOutlined />} href="/allocations/print" target="_blank">
+              打印房间表
+            </Button>
             {isInteractive && pendingCount > 0 && (
               <Button
                 type="primary"
@@ -500,9 +567,6 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
               >
                 自动分配 ({pendingCount}人)
               </Button>
-            )}
-            {!isInteractive && (
-              <Button onClick={() => window.print()}>打印 / 导出</Button>
             )}
           </Space>
         }
@@ -733,6 +797,10 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
           background: #fff7e6 !important;
           border-width: 3px !important;
         }
+        :global(.room-card.staff-room) {
+          border-color: #ffd666 !important;
+          background: #fffbe6 !important;
+        }
         :global(.room-card:hover) {
           box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
         }
@@ -812,6 +880,10 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
         :global(.bed-slot.empty) {
           cursor: pointer;
           border-color: #e0e0e0;
+        }
+        :global(.bed-slot.disabled) {
+          cursor: not-allowed !important;
+          opacity: 0.6;
         }
       `}</style>
     </div>

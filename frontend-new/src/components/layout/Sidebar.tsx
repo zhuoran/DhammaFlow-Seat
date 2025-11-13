@@ -10,6 +10,7 @@ import {
   ClusterOutlined,
   FileTextOutlined,
   RadarChartOutlined,
+  PrinterOutlined,
 } from "@ant-design/icons";
 import { usePathname, useRouter } from "next/navigation";
 import styles from "./sidebar.module.css";
@@ -22,6 +23,7 @@ const menuItems: MenuProps["items"] = [
   { key: "/import", icon: <CloudUploadOutlined />, label: "数据导入" },
   { key: "/allocations", icon: <ClusterOutlined />, label: "房间控制台" },
   { key: "/allocations/manual", icon: <ApartmentOutlined />, label: "房间工作台" },
+  { key: "/allocations/print", icon: <PrinterOutlined />, label: "房间打印" },
   { key: "/meditation-seats", icon: <ApartmentOutlined />, label: "禅堂座位" },
   { key: "/reports", icon: <FileTextOutlined />, label: "报表导出" },
 ];

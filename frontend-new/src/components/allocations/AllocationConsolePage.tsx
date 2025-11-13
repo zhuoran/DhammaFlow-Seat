@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { App, Button, Card, Col, Result, Row, Space, Typography } from "antd";
-import { ThunderboltOutlined, RedoOutlined, CheckCircleOutlined, ExclamationCircleOutlined } from "@ant-design/icons";
+import { ThunderboltOutlined, RedoOutlined, CheckCircleOutlined, ExclamationCircleOutlined, PrinterOutlined } from "@ant-design/icons";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { useAppContext } from "@/state/app-context";
@@ -81,6 +81,9 @@ export function AllocationConsolePage() {
             </Button>
             <Button loading={running} icon={<RedoOutlined />} onClick={clearAllocations}>
               重新分配
+            </Button>
+            <Button icon={<PrinterOutlined />} href="/allocations/print" target="_blank">
+              打印房间表
             </Button>
           </Space>
         }

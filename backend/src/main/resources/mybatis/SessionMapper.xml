@@ -5,7 +5,7 @@
 
     <sql id="base_column">
         id, center_id, session_code, course_type, start_date, end_date, expected_students,
-        status, notes, created_at, updated_at
+        elderly_age_threshold, status, notes, created_at, updated_at
     </sql>
 
     <sql id="config_column">
@@ -31,6 +31,7 @@
         <result column="start_date" property="startDate"/>
         <result column="end_date" property="endDate"/>
         <result column="expected_students" property="expectedStudents"/>
+        <result column="elderly_age_threshold" property="elderlyAgeThreshold"/>
         <result column="status" property="status"/>
         <result column="notes" property="notes"/>
         <result column="created_at" property="createdAt"/>
@@ -56,16 +57,16 @@
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO session (center_id, session_code, course_type, start_date, end_date,
-            expected_students, status, notes, created_at, updated_at)
+            expected_students, elderly_age_threshold, status, notes, created_at, updated_at)
         VALUES (#{centerId}, #{sessionCode}, #{courseType}, #{startDate}, #{endDate},
-            #{expectedStudents}, #{status}, #{notes}, NOW(), NOW())
+            #{expectedStudents}, #{elderlyAgeThreshold}, #{status}, #{notes}, NOW(), NOW())
     </insert>
 
     <update id="update">
         UPDATE session SET center_id = #{centerId}, session_code = #{sessionCode},
             course_type = #{courseType}, start_date = #{startDate}, end_date = #{endDate},
-            expected_students = #{expectedStudents}, status = #{status},
-            notes = #{notes}, updated_at = NOW()
+            expected_students = #{expectedStudents}, elderly_age_threshold = #{elderlyAgeThreshold},
+            status = #{status}, notes = #{notes}, updated_at = NOW()
         WHERE id = #{id}
     </update>
 

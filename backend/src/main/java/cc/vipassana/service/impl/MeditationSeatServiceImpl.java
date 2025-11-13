@@ -33,6 +33,9 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
     @Autowired
     private AllocationMapper allocationMapper;
 
+    @Autowired
+    private SessionMapper sessionMapper;
+
     @Override
     @Transactional
     public List<MeditationSeat> generateSeats(Long sessionId) {
@@ -41,7 +44,16 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
         List<MeditationSeat> generatedSeats = new ArrayList<>();
 
         try {
-            // 1. 获取禅堂配置
+            // 1. 获取session信息
+            Session session = sessionMapper.selectById(sessionId);
+            if (session == null) {
+                log.warn("期次 {} 不存在", sessionId);
+                return generatedSeats;
+            }
+            Integer elderlyThreshold = session.getElderlyAgeThreshold() != null ?
+                    session.getElderlyAgeThreshold() : 60;
+
+            // 2. 获取禅堂配置
             List<MeditationHallConfig> hallConfigs = meditationHallConfigMapper.selectBySessionId(sessionId);
 
             if (hallConfigs.isEmpty()) {
@@ -75,9 +87,14 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
                         config.getRegionCode(), regionSeats.size());
             }
 
-            // 4. 处理同伴座位标记（P1功能）
+            // 4. 处理同伴座位标记
             if (!generatedSeats.isEmpty()) {
                 processCompanionSeats(generatedSeats, students);
+            }
+
+            // 5. 处理特殊学员标记（孕妇/老人）
+            if (!generatedSeats.isEmpty()) {
+                processSpecialStudents(generatedSeats, students, elderlyThreshold);
             }
 
             log.info("禅堂座位生成完成，期次ID: {}，共生成 {} 个座位", sessionId, generatedSeats.size());
@@ -318,30 +335,93 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
     @Override
     @Transactional
     public void swapSeats(Long seatId1, Long seatId2) {
-        try {
-            MeditationSeat seat1 = meditationSeatMapper.selectById(seatId1);
-            MeditationSeat seat2 = meditationSeatMapper.selectById(seatId2);
+        MeditationSeat seat1 = meditationSeatMapper.selectById(seatId1);
+        MeditationSeat seat2 = meditationSeatMapper.selectById(seatId2);
 
-            if (seat1 == null || seat2 == null) {
-                throw new RuntimeException("座位不存在");
+        if (seat1 == null || seat2 == null) {
+            throw new RuntimeException("座位不存在");
+        }
+
+        Long studentId1 = seat1.getStudentId();
+        Long studentId2 = seat2.getStudentId();
+
+        if (studentId1 == null && studentId2 == null) {
+            throw new RuntimeException("两个座位都为空，无需交换");
+        }
+
+        // 冲突检测：检查交换后是否会导致同伴相邻
+        if (studentId1 != null && studentId2 != null) {
+            Student student1 = studentMapper.selectById(studentId1);
+            Student student2 = studentMapper.selectById(studentId2);
+
+            if (student1 != null && student2 != null &&
+                    student1.getFellowGroupId() != null &&
+                    student1.getFellowGroupId().equals(student2.getFellowGroupId())) {
+                throw new RuntimeException("不能交换同伴组成员的座位");
+            }
+        }
+
+        // 交换学员
+        seat1.setStudentId(studentId2);
+        seat2.setStudentId(studentId1);
+        seat1.setUpdatedAt(LocalDateTime.now());
+        seat2.setUpdatedAt(LocalDateTime.now());
+
+        meditationSeatMapper.update(seat1);
+        meditationSeatMapper.update(seat2);
+
+        // 更新同伴座位关系
+        updateCompanionRelations(seat1);
+        updateCompanionRelations(seat2);
+
+        log.info("座位交换成功: {} <-> {}", seatId1, seatId2);
+    }
+
+    /**
+     * 更新座位的同伴关系
+     */
+    private void updateCompanionRelations(MeditationSeat seat) {
+        if (seat.getStudentId() == null) {
+            seat.setIsWithCompanion(false);
+            seat.setCompanionSeatId(null);
+            meditationSeatMapper.update(seat);
+            return;
+        }
+
+        Student student = studentMapper.selectById(seat.getStudentId());
+        if (student == null || student.getFellowGroupId() == null) {
+            seat.setIsWithCompanion(false);
+            seat.setCompanionSeatId(null);
+            meditationSeatMapper.update(seat);
+            return;
+        }
+
+        // 查找同一区域的所有座位
+        List<MeditationSeat> regionSeats = meditationSeatMapper.selectBySessionId(seat.getSessionId())
+                .stream()
+                .filter(s -> seat.getRegionCode().equals(s.getRegionCode()))
+                .collect(Collectors.toList());
+
+        // 查找同伴座位
+        for (MeditationSeat other : regionSeats) {
+            if (other.getId().equals(seat.getId()) || other.getStudentId() == null) {
+                continue;
             }
 
-            Long tempStudentId = seat1.getStudentId();
-            seat1.setStudentId(seat2.getStudentId());
-            seat2.setStudentId(tempStudentId);
-
-            seat1.setUpdatedAt(LocalDateTime.now());
-            seat2.setUpdatedAt(LocalDateTime.now());
-
-            meditationSeatMapper.update(seat1);
-            meditationSeatMapper.update(seat2);
-
-            log.info("座位交换成功: {} <-> {}", seatId1, seatId2);
-
-        } catch (Exception e) {
-            log.error("座位交换失败", e);
-            throw new RuntimeException("座位交换失败: " + e.getMessage());
+            Student otherStudent = studentMapper.selectById(other.getStudentId());
+            if (otherStudent != null &&
+                    student.getFellowGroupId().equals(otherStudent.getFellowGroupId()) &&
+                    isAdjacentSeats(seat, other)) {
+                seat.setIsWithCompanion(true);
+                seat.setCompanionSeatId(other.getId());
+                meditationSeatMapper.update(seat);
+                return;
+            }
         }
+
+        seat.setIsWithCompanion(false);
+        seat.setCompanionSeatId(null);
+        meditationSeatMapper.update(seat);
     }
 
     @Override
@@ -519,5 +599,59 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
         }
 
         return false;
+    }
+
+    /**
+     * 处理特殊学员标记（孕妇/老人）
+     *
+     * @param seats 生成的所有座位列表
+     * @param students 学员列表
+     * @param elderlyThreshold 老人年龄阈值
+     */
+    private void processSpecialStudents(List<MeditationSeat> seats, List<Student> students,
+                                        int elderlyThreshold) {
+        log.info("开始处理特殊学员标记，老人阈值: {} 岁", elderlyThreshold);
+
+        Map<Long, Student> studentMap = students.stream()
+                .collect(Collectors.toMap(Student::getId, s -> s));
+
+        int pregnantCount = 0;
+        int elderlyCount = 0;
+
+        for (MeditationSeat seat : seats) {
+            if (seat.getStudentId() == null) continue;
+
+            Student student = studentMap.get(seat.getStudentId());
+            if (student == null) continue;
+
+            boolean updated = false;
+
+            // 检查孕妇
+            if (student.getSpecialNotes() != null &&
+                    student.getSpecialNotes().contains("怀孕")) {
+                seat.setStatus("pregnant");
+                updated = true;
+                pregnantCount++;
+                log.debug("标记孕妇座位: {} -> {}", student.getName(), seat.getSeatNumber());
+            }
+
+            // 检查老人
+            if (student.getAge() != null && student.getAge() >= elderlyThreshold) {
+                if (!"pregnant".equals(seat.getStatus())) {
+                    seat.setStatus("elderly");
+                }
+                updated = true;
+                elderlyCount++;
+                log.debug("标记老人座位: {} ({}岁) -> {}", student.getName(),
+                        student.getAge(), seat.getSeatNumber());
+            }
+
+            if (updated) {
+                seat.setUpdatedAt(LocalDateTime.now());
+                meditationSeatMapper.update(seat);
+            }
+        }
+
+        log.info("特殊学员标记完成: 孕妇 {} 人, 老人 {} 人", pregnantCount, elderlyCount);
     }
 }

@@ -13,3 +13,15 @@
   min-height: calc(100vh - 72px);
   background: transparent;
 }
+
+@media print {
+  .root,
+  .inner,
+  .content {
+    min-height: auto;
+    background: transparent !important;
+  }
+  .content {
+    padding: 0;
+  }
+}

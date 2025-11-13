@@ -19,6 +19,7 @@ public class Session {
     private LocalDate startDate;       // 开始日期
     private LocalDate endDate;         // 结束日期
     private Integer expectedStudents;  // 预期学员数
+    private Integer elderlyAgeThreshold; // 老人年龄阈值(默认60岁)
     private String status;             // 状态：PLANNING/RUNNING/COMPLETED
     private String notes;              // 备注
     private LocalDateTime createdAt;

@@ -6,7 +6,7 @@
     <!-- 公共查询字段 -->
     <sql id="base_column">
         id, center_id, room_number, building, floor, capacity, room_type, status,
-        gender_area, notes, created_at, updated_at
+        gender_area, is_reserved, reserved_for, special_tag, notes, created_at, updated_at
     </sql>
 
     <!-- resultMap -->
@@ -20,6 +20,9 @@
         <result column="room_type" property="roomType"/>
         <result column="status" property="status"/>
         <result column="gender_area" property="genderArea"/>
+        <result column="is_reserved" property="isReserved"/>
+        <result column="reserved_for" property="reservedFor"/>
+        <result column="special_tag" property="specialTag"/>
         <result column="notes" property="notes"/>
         <result column="created_at" property="createdAt"/>
         <result column="updated_at" property="updatedAt"/>
@@ -69,11 +72,12 @@
         WHERE center_id = #{centerId} AND room_number = #{roomNumber}
     </select>
 
-    <!-- 查询可用房间（启用状态） -->
+    <!-- 查询可用房间（启用状态，排除义工房和老师房） -->
     <select id="selectAvailable" resultMap="BaseResultMap">
         SELECT <include refid="base_column"/>
         FROM room
         WHERE status = 'ENABLED'
+          AND room_type NOT IN ('义工房', '老师房')
         ORDER BY room_number
     </select>
 
@@ -88,22 +92,25 @@
     <!-- 插入房间 -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO room (
-            center_id, room_number, building, floor, capacity, room_type, status, gender_area, notes, created_at, updated_at
+            center_id, room_number, building, floor, capacity, room_type, status, gender_area,
+            is_reserved, reserved_for, special_tag, notes, created_at, updated_at
         ) VALUES (
             #{centerId}, #{roomNumber}, #{building}, #{floor}, #{capacity}, #{roomType}, #{status},
-            #{genderArea}, #{notes}, NOW(), NOW()
+            #{genderArea}, #{isReserved}, #{reservedFor}, #{specialTag}, #{notes}, NOW(), NOW()
         )
     </insert>
 
     <!-- 批量插入房间 -->
     <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO room (
-            center_id, room_number, building, floor, capacity, room_type, status, gender_area, notes, created_at, updated_at
+            center_id, room_number, building, floor, capacity, room_type, status, gender_area,
+            is_reserved, reserved_for, special_tag, notes, created_at, updated_at
         ) VALUES
         <foreach collection="rooms" item="room" separator=",">
             (
                 #{room.centerId}, #{room.roomNumber}, #{room.building}, #{room.floor}, #{room.capacity},
-                #{room.roomType}, #{room.status}, #{room.genderArea}, #{room.notes}, NOW(), NOW()
+                #{room.roomType}, #{room.status}, #{room.genderArea}, #{room.isReserved},
+                #{room.reservedFor}, #{room.specialTag}, #{room.notes}, NOW(), NOW()
             )
         </foreach>
     </insert>
@@ -119,6 +126,9 @@
             room_type = #{roomType},
             status = #{status},
             gender_area = #{genderArea},
+            is_reserved = #{isReserved},
+            reserved_for = #{reservedFor},
+            special_tag = #{specialTag},
             notes = #{notes},
             updated_at = NOW()
         WHERE id = #{id}

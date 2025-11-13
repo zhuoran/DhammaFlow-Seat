@@ -20,6 +20,9 @@ public class Room {
     private String roomType;          // 房间类型
     private String status;            // 状态：ENABLED/DISABLED
     private String genderArea;        // 性别区域：男/女
+    private Boolean isReserved;       // 是否预留
+    private String reservedFor;       // 预留给谁
+    private String specialTag;        // 特殊标签(如"老人1"/"老人2")
     private String notes;             // 备注
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

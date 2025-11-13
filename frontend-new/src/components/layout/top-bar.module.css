@@ -18,3 +18,9 @@
 .selector {
   min-width: 200px;
 }
+
+@media print {
+  .topbar {
+    display: none !important;
+  }
+}

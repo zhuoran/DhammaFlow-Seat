@@ -3,6 +3,9 @@ package cc.vipassana.service.impl;
 import cc.vipassana.entity.*;
 import cc.vipassana.mapper.*;
 import cc.vipassana.service.AllocationService;
+import cc.vipassana.service.allocation.CompanionSplitter;
+import cc.vipassana.service.allocation.RoomCursor;
+import cc.vipassana.service.allocation.RoomQueueBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -55,10 +58,13 @@ public class AllocationServiceImpl implements AllocationService {
             result.conflictCount = conflicts.size();
             log.info("检测到冲突: {}", result.conflictCount);
 
-            // 5. 生成禅堂座位
+            // 5. 生成统计信息
+            result.statistics = generateStatistics(sessionId, sortedStudents);
+
+            // 6. 生成禅堂座位
             generateMeditationSeats(sessionId);
 
-            // 6. 更新状态
+            // 7. 更新状态
             result.success = result.allocatedCount == result.totalStudents;
             result.message = result.success ?
                 String.format("分配成功！分配学员数: %d, 冲突数: %d", result.allocatedCount, result.conflictCount) :
@@ -76,6 +82,66 @@ public class AllocationServiceImpl implements AllocationService {
     }
 
     /**
+     * 生成详细统计信息
+     */
+    private Map<String, Object> generateStatistics(Long sessionId, List<Student> students) {
+        Map<String, Object> stats = new HashMap<>();
+
+        // 学员类型统计
+        long monkCount = students.stream()
+                .filter(s -> "法师".equals(s.getSpecialNotes()))
+                .count();
+        long oldStudentCount = students.stream()
+                .filter(s -> s.getStudyTimes() != null && s.getStudyTimes() > 0)
+                .filter(s -> !"法师".equals(s.getSpecialNotes()))
+                .count();
+        long newStudentCount = students.stream()
+                .filter(s -> s.getStudyTimes() != null && s.getStudyTimes() == 0)
+                .filter(s -> !"法师".equals(s.getSpecialNotes()))
+                .count();
+
+        stats.put("monkCount", monkCount);
+        stats.put("oldStudentCount", oldStudentCount);
+        stats.put("newStudentCount", newStudentCount);
+
+        // 性别统计
+        long maleCount = students.stream()
+                .filter(s -> "M".equals(s.getGender()))
+                .count();
+        long femaleCount = students.stream()
+                .filter(s -> "F".equals(s.getGender()))
+                .count();
+
+        stats.put("maleCount", maleCount);
+        stats.put("femaleCount", femaleCount);
+
+        // 同伴组统计
+        long companionGroupCount = students.stream()
+                .filter(s -> s.getFellowGroupId() != null)
+                .map(Student::getFellowGroupId)
+                .distinct()
+                .count();
+        long companionStudentCount = students.stream()
+                .filter(s -> s.getFellowGroupId() != null)
+                .count();
+
+        stats.put("companionGroupCount", companionGroupCount);
+        stats.put("companionStudentCount", companionStudentCount);
+
+        // 房间利用统计
+        List<Allocation> allocations = allocationMapper.selectBySessionId(sessionId);
+        long usedRoomCount = allocations.stream()
+                .map(Allocation::getRoomId)
+                .distinct()
+                .count();
+
+        stats.put("usedRoomCount", usedRoomCount);
+
+        log.debug("统计信息: {}", stats);
+        return stats;
+    }
+
+    /**
      * 学员排序：法师 > 旧生 > 新生
      * 同优先级内按修学次数降序
      */
@@ -87,15 +153,9 @@ public class AllocationServiceImpl implements AllocationService {
         return students;
     }
 
-    // 辅助类：表示可用床位 (roomId + bedNumber)
-    @lombok.Value
-    private static class AvailableBed {
-        Long roomId;
-        Integer bedNumber;
-    }
-
     /**
-     * 核心分配算法：根据优先级和同伴关系分配床位
+     * 核心分配算法：根据VBA宏逻辑按房间类型优先级分配床位
+     * 分配顺序：法师房 → 旧生房 → 新生房 → 老人房1 → 老人房2
      */
     @Override
     @Transactional
@@ -109,83 +169,108 @@ public class AllocationServiceImpl implements AllocationService {
             throw new RuntimeException("没有可用房间");
         }
 
-        // 按性别区分创建床位队列：男性房间和女性房间
-        Queue<AvailableBed> maleBedsQueue = new LinkedList<>();
-        Queue<AvailableBed> femaleBedsQueue = new LinkedList<>();
+        // 按性别分组学员
+        Map<String, List<Student>> genderGroups = students.stream()
+                .collect(Collectors.groupingBy(student ->
+                        "M".equals(student.getGender()) ? "男" : "女"));
 
-        // 查询当前会期已分配的床位
-        List<Allocation> existingAllocations = allocationMapper.selectBySessionId(sessionId);
-        Set<String> occupiedBeds = existingAllocations.stream()
-            .map(a -> a.getRoomId() + "-" + a.getBedNumber())
-            .collect(Collectors.toSet());
+        List<Allocation> allAllocations = new ArrayList<>();
+        Map<Long, Integer> roomOccupancy = new HashMap<>();
 
-        for (Room room : availableRooms) {
-            // 根据房间容量生成可用床位
-            List<AvailableBed> availableBeds = new ArrayList<>();
-            for (int i = 1; i <= room.getCapacity(); i++) {
-                String bedKey = room.getId() + "-" + i;
-                if (!occupiedBeds.contains(bedKey)) {
-                    availableBeds.add(new AvailableBed(room.getId(), i));
-                }
-            }
+        // 为男女分别分配房间
+        for (Map.Entry<String, List<Student>> entry : genderGroups.entrySet()) {
+            String genderArea = entry.getKey();
+            List<Student> genderStudents = entry.getValue();
 
-            // 根据房间的性别区域分类床位（支持"男"/"男众"和"女"/"女众"）
-            if (room.getGenderArea() != null && room.getGenderArea().contains("男")) {
-                maleBedsQueue.addAll(availableBeds);
-                log.debug("房间 {} ({}): 添加 {} 张床位", room.getRoomNumber(), room.getGenderArea(), availableBeds.size());
-            } else if (room.getGenderArea() != null && room.getGenderArea().contains("女")) {
-                femaleBedsQueue.addAll(availableBeds);
-                log.debug("房间 {} ({}): 添加 {} 张床位", room.getRoomNumber(), room.getGenderArea(), availableBeds.size());
-            }
-        }
+            log.info("开始分配 {} 学员，共 {} 人", genderArea, genderStudents.size());
 
-        log.info("可用床位: 男性房间 {} 张, 女性房间 {} 张", maleBedsQueue.size(), femaleBedsQueue.size());
+            // 使用RoomQueueBuilder构建房间队列（按VBA固定顺序）
+            RoomQueueBuilder queueBuilder = new RoomQueueBuilder(availableRooms);
+            Queue<Room> roomQueue = queueBuilder.buildQueue(genderArea);
 
-        int allocatedCount = 0;
-
-        // 分配学员到床位 - 按性别分离
-        for (Student student : students) {
-            Queue<AvailableBed> studentBedQueue = "M".equals(student.getGender()) ? maleBedsQueue : femaleBedsQueue;
-
-            if (studentBedQueue.isEmpty()) {
-                log.warn("无可用床位 [{}]: 无法分配学员: {}", "M".equals(student.getGender()) ? "男" : "女", student.getName());
+            if (roomQueue.isEmpty()) {
+                log.warn("没有可用的 {} 房间", genderArea);
                 continue;
             }
 
-            AvailableBed bed = studentBedQueue.poll();
-            try {
+            // 使用RoomCursor管理床位分配
+            RoomCursor cursor = new RoomCursor(roomQueue);
+
+            // 容量溢出检测
+            int availableCapacity = cursor.getRemainingCapacity();
+            if (availableCapacity < genderStudents.size()) {
+                log.warn("床位容量不足！{} 区域需要 {} 个床位，但只有 {} 个可用床位",
+                        genderArea, genderStudents.size(), availableCapacity);
+            }
+
+            int genderAllocated = 0;
+
+            // 按顺序分配学员
+            for (Student student : genderStudents) {
+                if (!cursor.hasNext()) {
+                    log.warn("床位不足，无法分配学员: {}", student.getName());
+                    break;
+                }
+
+                Room room = cursor.nextAvailableRoom();
+                if (room == null) {
+                    log.warn("无可用房间，无法分配学员: {}", student.getName());
+                    break;
+                }
+
+                // O(1)计算床位号
+                int bedNumber = roomOccupancy.merge(room.getId(), 1, Integer::sum);
+
                 // 创建分配记录
                 Allocation allocation = Allocation.builder()
-                    .sessionId(sessionId)
-                    .studentId(student.getId())
-                    .roomId(bed.getRoomId())
-                    .bedNumber(bed.getBedNumber())
-                    .allocationType("AUTOMATIC")
-                    .allocationReason("自动分配")
-                    .isTemporary(true)
-                    .conflictFlag(false)
-                    .build();
+                        .sessionId(sessionId)
+                        .studentId(student.getId())
+                        .roomId(room.getId())
+                        .bedNumber(bedNumber)
+                        .allocationType("AUTOMATIC")
+                        .allocationReason("按房间类型优先级自动分配")
+                        .isTemporary(true)
+                        .conflictFlag(false)
+                        .build();
 
+                allAllocations.add(allocation);
+                genderAllocated++;
+
+                log.debug("已分配: {} ({}) -> 房间ID: {}, 床位: {}",
+                        student.getName(), genderArea, room.getId(), bedNumber);
+            }
+
+            log.info("{} 学员分配完成，已分配: {} 人", genderArea, genderAllocated);
+        }
+
+        // 批量插入分配记录
+        if (!allAllocations.isEmpty()) {
+            for (Allocation allocation : allAllocations) {
                 allocationMapper.insert(allocation);
-                allocatedCount++;
-
-                log.debug("已分配: {} ({}) -> 房间ID: {}, 床位: {}", student.getName(),
-                    "M".equals(student.getGender()) ? "男" : "女", bed.getRoomId(), bed.getBedNumber());
-
-            } catch (Exception e) {
-                log.error("分配失败: {} -> 房间ID: {}, 床位: {}", student.getName(), bed.getRoomId(), bed.getBedNumber(), e);
-                studentBedQueue.offer(bed); // 返还床位到对应的性别队列
             }
         }
+
+        // 执行同伴分离（原地修改）
+        log.info("开始执行同伴分离...");
+        CompanionSplitter splitter = new CompanionSplitter();
+        splitter.splitCompanions(allAllocations, students);
+
+        // 批量更新分配记录
+        for (Allocation allocation : allAllocations) {
+            allocationMapper.update(allocation);
+        }
+
+        log.info("同伴分离完成");
 
         // 防止除以零
         if (students.isEmpty()) {
             return 0.0;
         }
 
-        double allocationScore = (double) allocatedCount / students.size();
-        log.info("分配完成: {}/{} ({}%)", allocatedCount, students.size(),
-            String.format("%.2f", allocationScore * 100));
+        int totalAllocated = allAllocations.size();
+        double allocationScore = (double) totalAllocated / students.size();
+        log.info("分配完成: {}/{} ({}%)", totalAllocated, students.size(),
+                String.format("%.2f", allocationScore * 100));
 
         return allocationScore;
     }
