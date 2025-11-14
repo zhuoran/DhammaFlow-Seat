@@ -130,6 +130,48 @@ export interface AllocationConflict {
   updatedAt?: string;
 }
 
+export type SeatSectionPurpose = "MONK" | "OLD_STUDENT" | "NEW_STUDENT" | "WORKER" | "RESERVED" | "MIXED";
+
+export interface HallSection {
+  name: string;
+  purpose: SeatSectionPurpose;
+  rowStart: number;
+  rowEnd: number;
+  colStart: number;
+  colEnd: number;
+}
+
+export interface HallLayout {
+  originRow?: number;
+  originCol?: number;
+  totalRows?: number;
+  totalCols?: number;
+  sections?: HallSection[];
+}
+
+export interface HallConfig {
+  id: number;
+  centerId: number;
+  sessionId: number;
+  regionCode: string;
+  regionName?: string;
+  layout: HallLayout;
+}
+
+export interface CompiledSeatCell {
+  row: number;
+  col: number;
+  sectionName?: string;
+  purpose?: SeatSectionPurpose;
+  reserved?: boolean;
+}
+
+export interface CompiledLayout {
+  totalRows: number;
+  totalCols: number;
+  cells: CompiledSeatCell[];
+}
+
 export interface ApiResponse<T = unknown> {
   code: number;
   message: string;

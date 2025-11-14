@@ -40,6 +40,9 @@ public class MeditationHallConfig {
     private String oldStudentReservedList; // 旧生预留座位列表
     private String dhammaWorkerArea1;      // 法工区域1
     private String dhammaWorkerArea2;      // 法工区域2
+    private String layoutConfig;           // 新的布局配置(JSON)
+    private String supportedGenders;       // 支持的性别集合，逗号分隔
+    private String hallUsage;              // 禅堂使用模式：SINGLE/DUAL/MIXED
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { allocationApi, bedApi, centerApi, roomApi, sessionApi, studentApi } from "@/services/api";
-import type { Allocation, Room, Student } from "@/types/domain";
+import { allocationApi, bedApi, centerApi, hallConfigApi, roomApi, sessionApi, studentApi } from "@/services/api";
+import type { Allocation, HallLayout, Room, Student } from "@/types/domain";
 
 export function useCenters() {
   return useQuery({
@@ -96,6 +96,26 @@ export function useRoomMutations(centerId: number) {
   });
 
   return { create, update, remove };
+}
+
+export function useHallConfigs(sessionId?: number) {
+  return useQuery({
+    queryKey: ["hall-configs", sessionId],
+    queryFn: () => hallConfigApi.fetchHallConfigs(sessionId!),
+    enabled: Boolean(sessionId),
+  });
+}
+
+export function useUpdateHallLayout(sessionId?: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, layout }: { id: number; layout: HallLayout }) => hallConfigApi.updateHallLayout(id, layout),
+    onSuccess: async () => {
+      if (sessionId) {
+        await queryClient.invalidateQueries({ queryKey: ["hall-configs", sessionId] });
+      }
+    },
+  });
 }
 
 export function useStudentMutations(sessionId: number) {

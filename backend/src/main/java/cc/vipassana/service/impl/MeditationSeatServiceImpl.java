@@ -3,7 +3,13 @@ package cc.vipassana.service.impl;
 import cc.vipassana.entity.*;
 import cc.vipassana.mapper.*;
 import cc.vipassana.service.MeditationSeatService;
-import cc.vipassana.util.CompanionSeatHelper;
+import cc.vipassana.service.layout.LayoutCompiler;
+import cc.vipassana.dto.layout.CompiledLayout;
+import cc.vipassana.dto.layout.SeatAllocationContext;
+import cc.vipassana.service.seat.SeatAllocator;
+import cc.vipassana.service.seat.SeatAnnotationService;
+import cc.vipassana.service.seat.SeatNumberingService;
+import cc.vipassana.service.seat.SeatValidationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -36,6 +42,24 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
     @Autowired
     private SessionMapper sessionMapper;
 
+    @Autowired
+    private RoomMapper roomMapper;
+
+    @Autowired
+    private LayoutCompiler layoutCompiler;
+
+    @Autowired
+    private SeatAllocator seatAllocator;
+
+    @Autowired
+    private SeatNumberingService seatNumberingService;
+
+    @Autowired
+    private SeatAnnotationService seatAnnotationService;
+
+    @Autowired
+    private SeatValidationService seatValidationService;
+
     @Override
     @Transactional
     public List<MeditationSeat> generateSeats(Long sessionId) {
@@ -44,15 +68,13 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
         List<MeditationSeat> generatedSeats = new ArrayList<>();
 
         try {
+            List<String> warnings = new ArrayList<>();
             // 1. 获取session信息
             Session session = sessionMapper.selectById(sessionId);
             if (session == null) {
                 log.warn("期次 {} 不存在", sessionId);
                 return generatedSeats;
             }
-            Integer elderlyThreshold = session.getElderlyAgeThreshold() != null ?
-                    session.getElderlyAgeThreshold() : 60;
-
             // 2. 获取禅堂配置
             List<MeditationHallConfig> hallConfigs = meditationHallConfigMapper.selectBySessionId(sessionId);
 
@@ -63,8 +85,10 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
 
             // 2. 获取该期次所有学员的分配信息（批量查询优化）
             List<Allocation> allocations = allocationMapper.selectBySessionId(sessionId);
+            Map<Long, Allocation> allocationMap = allocations.stream()
+                    .collect(Collectors.toMap(Allocation::getStudentId, a -> a));
+            Map<Long, String> roomNumberMap = loadRoomNumberMap(allocations);
 
-            // 批量查询所有学员（优化N+1问题）
             List<Long> studentIds = allocations.stream()
                     .map(Allocation::getStudentId)
                     .collect(Collectors.toList());
@@ -77,26 +101,32 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
 
             // 3. 按区域和性别分组学员
             for (MeditationHallConfig config : hallConfigs) {
+                CompiledLayout compiledLayout = layoutCompiler.compile(config);
                 List<Student> regionStudents = filterStudentsByRegion(students, config.getGenderType());
 
-                // 生成该禅堂区域的座位
-                List<MeditationSeat> regionSeats = generateRegionSeats(sessionId, config, regionStudents);
+                SeatAllocationContext context = seatAllocator.buildContext(config, regionStudents);
+                SeatAllocator.AllocationResult result = seatAllocator.allocate(config, context, sessionId, warnings);
+                List<MeditationSeat> regionSeats = result.seats();
+                seatNumberingService.assignInitialNumbers(regionSeats,
+                        compiledLayout.getSections(),
+                        compiledLayout.getSource().getNumbering());
+                seatAnnotationService.annotateSpecial(regionSeats,
+                        regionStudents,
+                        compiledLayout.getSource());
+                bindBedCodes(regionSeats, allocationMap, roomNumberMap);
+                meditationSeatMapper.insertBatch(regionSeats);
                 generatedSeats.addAll(regionSeats);
 
                 log.info("禅堂区域 {} 座位生成完成，共 {} 个座位",
                         config.getRegionCode(), regionSeats.size());
             }
 
-            // 4. 处理同伴座位标记
-            if (!generatedSeats.isEmpty()) {
-                processCompanionSeats(generatedSeats, students);
-            }
+            List<String> validationWarnings = seatValidationService.validate(generatedSeats);
+            warnings.addAll(validationWarnings);
 
-            // 5. 处理特殊学员标记（孕妇/老人）
-            if (!generatedSeats.isEmpty()) {
-                processSpecialStudents(generatedSeats, students, elderlyThreshold);
+            if (!warnings.isEmpty()) {
+                warnings.forEach(w -> log.warn("期次 {} 生成警告: {}", sessionId, w));
             }
-
             log.info("禅堂座位生成完成，期次ID: {}，共生成 {} 个座位", sessionId, generatedSeats.size());
             return generatedSeats;
 
@@ -116,207 +146,45 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 生成禅堂座位 - 三阶段分配算法
-     * 阶段1: 旧生座位 (前K行水平排列，优先级最高)
-     * 阶段2: 新生座位 (剩余行数，从右到左竖列)
-     * 阶段3: 法师座位 (左侧单列，行间距3行)
-     */
-    private List<MeditationSeat> generateRegionSeats(Long sessionId, MeditationHallConfig config,
-                                                     List<Student> students) {
-        List<MeditationSeat> seats = new ArrayList<>();
-
-        // 第一步: 按优先级分组学员
-        List<Student> monks = new ArrayList<>();
-        List<Student> oldLayStudents = new ArrayList<>();
-        List<Student> newLayStudents = new ArrayList<>();
-
-        for (Student student : students) {
-            if ("monk".equals(student.getStudentType())) {
-                monks.add(student);
-            } else if ("old_student".equals(student.getStudentType())) {
-                oldLayStudents.add(student);
-            } else {
-                newLayStudents.add(student);
+    private void bindBedCodes(List<MeditationSeat> seats,
+                              Map<Long, Allocation> allocationMap,
+                              Map<Long, String> roomNumberMap) {
+        for (MeditationSeat seat : seats) {
+            if (seat.getStudentId() == null) {
+                continue;
             }
-        }
-
-        // 对旧生排序: 按修学总次数降序，相同次数按年龄降序
-        oldLayStudents.sort((a, b) -> {
-            int experienceDiff = Integer.compare(
-                    b.getTotalCourseTimes(),
-                    a.getTotalCourseTimes()
-            );
-            if (experienceDiff != 0) return experienceDiff;
-            // 年龄大的优先
-            return Integer.compare(
-                    b.getAge() != null ? b.getAge() : 0,
-                    a.getAge() != null ? a.getAge() : 0
-            );
-        });
-
-        // 对新生排序: 按年龄降序
-        newLayStudents.sort((a, b) -> Integer.compare(
-                b.getAge() != null ? b.getAge() : 0,
-                a.getAge() != null ? a.getAge() : 0
-        ));
-
-        log.info("禅堂区域 {} 学员分组: 法师 {}名, 旧生 {}名, 新生 {}名",
-                config.getRegionCode(), monks.size(), oldLayStudents.size(), newLayStudents.size());
-
-        // 禅堂配置
-        Integer regionWidth = config.getRegionWidth() != null ? config.getRegionWidth() : 8;
-        Integer regionRows = config.getRegionRows() != null ? config.getRegionRows() : 10;
-        final int MONK_ROW_OFFSET = 3;  // 法师座位行间距
-        int seatIndex = 1;
-
-        // ========== 阶段1: 旧生座位 (前K行，水平排列) ==========
-        log.debug("开始分配旧生座位...");
-        int oldStudentIndex = 0;
-        int oldStudentRow = 0;
-        int oldStudentCol = 0;
-
-        while (oldStudentIndex < oldLayStudents.size()) {
-            Student student = oldLayStudents.get(oldStudentIndex);
-            String seatNumber = generateSeatNumber(config, seatIndex);
-
-            MeditationSeat seat = MeditationSeat.builder()
-                    .sessionId(sessionId)
-                    .centerId(config.getCenterId())
-                    .hallConfigId(config.getId())
-                    .hallId(config.getId())
-                    .seatNumber(seatNumber)
-                    .studentId(student.getId())
-                    .seatType("STUDENT")
-                    .isOldStudent(true)
-                    .gender(student.getGender())
-                    .ageGroup(student.getAgeGroup())
-                    .regionCode(config.getRegionCode())
-                    .rowIndex(oldStudentRow)
-                    .colIndex(oldStudentCol)
-                    .status("allocated")
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
-                    .build();
-
-            meditationSeatMapper.insert(seat);
-            seats.add(seat);
-            log.debug("旧生座位分配: {} (位置 {},{}) -> {}",
-                    seatNumber, oldStudentRow, oldStudentCol, student.getName());
-
-            oldStudentCol++;
-            if (oldStudentCol >= regionWidth) {
-                oldStudentCol = 0;
-                oldStudentRow++;
+            Allocation allocation = allocationMap.get(seat.getStudentId());
+            if (allocation == null) {
+                continue;
             }
-
-            seatIndex++;
-            oldStudentIndex++;
+            seat.setBedCode(buildBedCode(allocation, roomNumberMap));
         }
-
-        // 旧生座位结束位置
-        int nextAvailableRow = oldStudentRow;
-
-        // ========== 阶段2: 新生座位 (竖列，从右到左) ==========
-        log.debug("开始分配新生座位...");
-        int newStudentRow = nextAvailableRow;
-        int newStudentCol = regionWidth - 1;  // 从最右列开始
-
-        for (Student student : newLayStudents) {
-            String seatNumber = generateSeatNumber(config, seatIndex);
-
-            MeditationSeat seat = MeditationSeat.builder()
-                    .sessionId(sessionId)
-                    .centerId(config.getCenterId())
-                    .hallConfigId(config.getId())
-                    .hallId(config.getId())
-                    .seatNumber(seatNumber)
-                    .studentId(student.getId())
-                    .seatType("STUDENT")
-                    .isOldStudent(false)
-                    .gender(student.getGender())
-                    .ageGroup(student.getAgeGroup())
-                    .regionCode(config.getRegionCode())
-                    .rowIndex(newStudentRow)
-                    .colIndex(newStudentCol)
-                    .status("allocated")
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
-                    .build();
-
-            meditationSeatMapper.insert(seat);
-            seats.add(seat);
-            log.debug("新生座位分配: {} (位置 {},{}) -> {}",
-                    seatNumber, newStudentRow, newStudentCol, student.getName());
-
-            newStudentRow++;
-            if (newStudentRow >= regionRows) {
-                // 当前列满，移到左边下一列
-                newStudentCol--;
-                newStudentRow = nextAvailableRow;
-
-                // 检查是否超出列范围
-                if (newStudentCol < 0) {
-                    log.warn("新生座位超出禅堂容量，regionWidth: {}, regionRows: {}", regionWidth, regionRows);
-                    break;
-                }
-            }
-
-            seatIndex++;
-        }
-
-        // ========== 阶段3: 法师座位 (左侧单列，行间距MONK_ROW_OFFSET) ==========
-        log.debug("开始分配法师座位...");
-        for (int i = 0; i < monks.size(); i++) {
-            Student monk = monks.get(i);
-            String seatNumber = "法" + (i + 1);
-            int monkRow = i * MONK_ROW_OFFSET;
-            int monkCol = 0;
-
-            MeditationSeat seat = MeditationSeat.builder()
-                    .sessionId(sessionId)
-                    .centerId(config.getCenterId())
-                    .hallConfigId(config.getId())
-                    .hallId(config.getId())
-                    .seatNumber(seatNumber)
-                    .studentId(monk.getId())
-                    .seatType("MONK")
-                    .isOldStudent(false)
-                    .gender(monk.getGender())
-                    .ageGroup(monk.getAgeGroup())
-                    .regionCode(config.getRegionCode())
-                    .rowIndex(monkRow)
-                    .colIndex(monkCol)
-                    .status("allocated")
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
-                    .build();
-
-            meditationSeatMapper.insert(seat);
-            seats.add(seat);
-            log.debug("法师座位分配: {} (位置 {},{}) -> {}", seatNumber, monkRow, monkCol, monk.getName());
-        }
-
-        log.info("禅堂区域 {} 座位生成完成，共 {} 个座位 (旧生{}+新生{}+法师{})",
-                config.getRegionCode(), seats.size(),
-                oldLayStudents.size(), newLayStudents.size(), monks.size());
-
-        return seats;
     }
 
-    private String generateSeatNumber(MeditationHallConfig config, int seatNum) {
-        String prefix = config.getSeatPrefix() != null ? config.getSeatPrefix() : "S";
-        String numberingType = config.getNumberingType();
-
-        if ("sequential".equals(numberingType)) {
-            return prefix + seatNum;
-        } else if ("odd".equals(numberingType)) {
-            return prefix + (seatNum * 2 - 1);
-        } else if ("even".equals(numberingType)) {
-            return prefix + (seatNum * 2);
-        } else {
-            return prefix + seatNum;
+    private String buildBedCode(Allocation allocation, Map<Long, String> roomNumberMap) {
+        if (allocation.getRoomId() == null || allocation.getBedNumber() == null) {
+            return null;
         }
+        String roomNumber = roomNumberMap.getOrDefault(allocation.getRoomId(),
+                String.valueOf(allocation.getRoomId()));
+        return roomNumber + "-" + allocation.getBedNumber();
+    }
+
+    private Map<Long, String> loadRoomNumberMap(List<Allocation> allocations) {
+        Set<Long> roomIds = allocations.stream()
+                .map(Allocation::getRoomId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> roomMap = new HashMap<>();
+        if (roomIds.isEmpty()) {
+            return roomMap;
+        }
+        for (Room room : roomMapper.selectAll()) {
+            if (roomIds.contains(room.getId())) {
+                roomMap.put(room.getId(), room.getRoomNumber());
+            }
+        }
+        return roomMap;
     }
 
     @Override
@@ -479,6 +347,8 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
             stats.availableSeats = stats.totalSeats - stats.occupiedSeats;
             stats.occupancyRate = stats.totalSeats > 0 ?
                     (double) stats.occupiedSeats / stats.totalSeats : 0.0;
+            stats.unassignedStudents = 0;
+            stats.warnings = Collections.emptyList();
 
             return stats;
 

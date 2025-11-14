@@ -32,6 +32,9 @@
         <result column="old_student_reserved_list" property="oldStudentReservedList"/>
         <result column="dhamma_worker_area1" property="dhammaWorkerArea1"/>
         <result column="dhamma_worker_area2" property="dhammaWorkerArea2"/>
+        <result column="layout_config" property="layoutConfig"/>
+        <result column="supported_genders" property="supportedGenders"/>
+        <result column="hall_usage" property="hallUsage"/>
         <result column="created_at" property="createdAt"/>
         <result column="updated_at" property="updatedAt"/>
     </resultMap>
@@ -42,7 +45,8 @@
                region_width, region_rows, is_auto_width, is_auto_rows,
                numbering_type, seat_number_prefix, gender_separated, gender_type,
                monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
-               dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
+               dhamma_worker_area1, dhamma_worker_area2, layout_config, supported_genders,
+               hall_usage, created_at, updated_at
         FROM meditation_hall_config
         WHERE session_id = #{sessionId}
     </select>
@@ -53,7 +57,8 @@
                region_width, region_rows, is_auto_width, is_auto_rows,
                numbering_type, seat_number_prefix, gender_separated, gender_type,
                monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
-               dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
+               dhamma_worker_area1, dhamma_worker_area2, layout_config, supported_genders,
+               hall_usage, created_at, updated_at
         FROM meditation_hall_config
         WHERE id = #{id}
     </select>
@@ -64,7 +69,8 @@
                region_width, region_rows, is_auto_width, is_auto_rows,
                numbering_type, seat_number_prefix, gender_separated, gender_type,
                monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
-               dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
+               dhamma_worker_area1, dhamma_worker_area2, layout_config, supported_genders,
+               hall_usage, created_at, updated_at
         FROM meditation_hall_config
         WHERE center_id = #{centerId} AND region_code = #{regionCode}
     </select>
@@ -86,13 +92,15 @@
             max_rows, max_cols, used_rows, used_cols, region_width, region_rows, is_auto_width, is_auto_rows,
             numbering_type, seat_number_prefix, gender_separated, gender_type,
             monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
-            dhamma_worker_area1, dhamma_worker_area2, created_at, updated_at
+            dhamma_worker_area1, dhamma_worker_area2, layout_config, supported_genders,
+            hall_usage, created_at, updated_at
         ) VALUES (
             #{centerId}, #{sessionId}, #{hallName}, #{regionName}, #{regionCode}, #{validArea}, #{beginCell}, #{rowOffset}, #{colOffset},
             #{maxRows}, #{maxCols}, #{usedRows}, #{usedCols}, #{regionWidth}, #{regionRows}, #{isAutoWidth}, #{isAutoRows},
             #{numberingType}, #{seatNumberPrefix}, #{genderSeparated}, #{genderType},
             #{monkStartCell}, #{monkMaxCount}, #{monkSeatPrefix}, #{oldStudentReservedList},
-            #{dhammaWorkerArea1}, #{dhammaWorkerArea2}, NOW(), NOW()
+            #{dhammaWorkerArea1}, #{dhammaWorkerArea2}, #{layoutConfig}, #{supportedGenders},
+            #{hallUsage}, NOW(), NOW()
         )
     </insert>
 
@@ -125,6 +133,9 @@
             old_student_reserved_list = #{oldStudentReservedList},
             dhamma_worker_area1 = #{dhammaWorkerArea1},
             dhamma_worker_area2 = #{dhammaWorkerArea2},
+            layout_config = #{layoutConfig},
+            supported_genders = #{supportedGenders},
+            hall_usage = #{hallUsage},
             updated_at = NOW()
         WHERE id = #{id}
     </update>

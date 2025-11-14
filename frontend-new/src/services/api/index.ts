@@ -7,3 +7,4 @@ export * as allocationApi from "./allocations";
 export * as importApi from "./imports";
 export * as reportApi from "./reports";
 export * as meditationSeatApi from "./meditation-seats";
+export * as hallConfigApi from "./hall-configs";

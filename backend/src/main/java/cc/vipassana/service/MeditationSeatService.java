@@ -73,5 +73,7 @@ public interface MeditationSeatService {
         public Integer occupiedSeats;
         public Integer availableSeats;
         public Double occupancyRate;
+        public Integer unassignedStudents;
+        public List<String> warnings;
     }
 }

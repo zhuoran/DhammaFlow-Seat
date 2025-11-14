@@ -255,6 +255,8 @@ public class ConfigLoader implements CommandLineRunner {
         config.setIsAutoRows(hallRegion.getAutoRows() != null ? hallRegion.getAutoRows() : true);
         config.setNumberingType(hallRegion.getNumberingType());
         config.setSeatPrefix(hallRegion.getSeatPrefix());
+        config.setSupportedGenders("MIXED");
+        config.setHallUsage("SINGLE");
         config.setCreatedAt(LocalDateTime.now());
         config.setUpdatedAt(LocalDateTime.now());
 
@@ -431,6 +433,8 @@ public class ConfigLoader implements CommandLineRunner {
         config.setIsAutoRows((Boolean) hallData.getOrDefault("auto_rows", true));
         config.setNumberingType((String) hallData.getOrDefault("numbering_type", "SEQUENTIAL"));
         config.setSeatPrefix((String) hallData.get("seat_prefix"));
+        config.setSupportedGenders("MIXED");
+        config.setHallUsage("SINGLE");
         config.setCreatedAt(LocalDateTime.now());
         config.setUpdatedAt(LocalDateTime.now());
 
