@@ -11,6 +11,7 @@ import {
   FileTextOutlined,
   RadarChartOutlined,
   PrinterOutlined,
+  BankOutlined,
 } from "@ant-design/icons";
 import { usePathname, useRouter } from "next/navigation";
 import styles from "./sidebar.module.css";
@@ -24,7 +25,8 @@ const menuItems: MenuProps["items"] = [
   { key: "/allocations", icon: <ClusterOutlined />, label: "房间控制台" },
   { key: "/allocations/manual", icon: <ApartmentOutlined />, label: "房间工作台" },
   { key: "/allocations/print", icon: <PrinterOutlined />, label: "房间打印" },
-  { key: "/meditation-seats", icon: <ApartmentOutlined />, label: "禅堂座位" },
+  { key: "/meditation-seats", icon: <ApartmentOutlined />, label: "禅堂配置" },
+  { key: "/seats-management", icon: <BankOutlined />, label: "座位管理" },
   { key: "/reports", icon: <FileTextOutlined />, label: "报表导出" },
 ];
 

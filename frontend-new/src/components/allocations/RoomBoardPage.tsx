@@ -309,7 +309,7 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
                         {companionLabel ? `（${companionLabel}）` : ""}
                       </Typography.Text>
                       {bed.bedNumber !== undefined && (
-                        <Tag size="small" color="geekblue" bordered={false}>
+                        <Tag color="geekblue" bordered={false}>
                           床 {bed.bedNumber}
                         </Tag>
                       )}

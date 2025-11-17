@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { allocationApi, bedApi, centerApi, hallConfigApi, roomApi, sessionApi, studentApi } from "@/services/api";
+import { allocationApi, bedApi, centerApi, hallConfigApi, meditationSeatApi, roomApi, sessionApi, studentApi } from "@/services/api";
 import type { Allocation, HallLayout, Room, Student } from "@/types/domain";
 
 export function useCenters() {
@@ -133,4 +133,20 @@ export function useStudentMutations(sessionId: number) {
   });
 
   return { update, remove };
+}
+
+export function useMeditationSeats(sessionId?: number) {
+  return useQuery({
+    queryKey: ["meditation-seats", sessionId],
+    queryFn: () => meditationSeatApi.fetchSeats(sessionId!),
+    enabled: Boolean(sessionId),
+  });
+}
+
+export function useSeatStatistics(sessionId?: number) {
+  return useQuery({
+    queryKey: ["seat-statistics", sessionId],
+    queryFn: () => meditationSeatApi.fetchSeatStatistics(sessionId!),
+    enabled: Boolean(sessionId),
+  });
 }

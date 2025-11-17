@@ -172,6 +172,46 @@ export interface CompiledLayout {
   cells: CompiledSeatCell[];
 }
 
+export type SeatStatus = 'available' | 'allocated' | 'reserved';
+export type SeatType = 'MONK' | 'STUDENT' | 'WORKER';
+
+export interface MeditationSeat {
+  id: number;
+  sessionId: number;
+  centerId: number;
+  hallConfigId: number;
+  hallId: number;
+  seatNumber: string;
+  studentId?: number;
+  bedCode?: string;
+  seatType: SeatType;
+  status: SeatStatus;
+  isOldStudent?: boolean;
+  ageGroup?: string;
+  gender?: Gender;
+  regionCode: string;
+  rowIndex: number;
+  colIndex: number;
+  rowPosition?: number;
+  colPosition?: number;
+  isWithCompanion?: boolean;
+  companionSeatId?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  // 前端扩展字段（用于显示）
+  studentName?: string;
+}
+
+export interface SeatStatistics {
+  totalSeats: number;
+  occupiedSeats: number;
+  availableSeats: number;
+  maleSeats: number;
+  femaleSeats: number;
+  oldStudents: number;
+  newStudents: number;
+}
+
 export interface ApiResponse<T = unknown> {
   code: number;
   message: string;

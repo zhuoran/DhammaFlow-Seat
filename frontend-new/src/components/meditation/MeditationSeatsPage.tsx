@@ -1,37 +1,42 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Col, Empty, List, Row, Space, message as antdMessage } from "antd";
-import { ReloadOutlined, EyeOutlined } from "@ant-design/icons";
+import { useMemo, useState } from "react";
+import { Button, Card, Col, Empty, List, Row, Space, Switch, message as antdMessage } from "antd";
+import { ReloadOutlined } from "@ant-design/icons";
 import { PageHeader } from "@/components/common/PageHeader";
 import { useAppContext } from "@/state/app-context";
-import { meditationSeatApi, hallConfigApi } from "@/services/api";
-import { useHallConfigs, useUpdateHallLayout } from "@/hooks/queries";
+import { meditationSeatApi } from "@/services/api";
+import { useHallConfigs, useUpdateHallLayout, useStudents } from "@/hooks/queries";
 import type { CompiledLayout, HallConfig, HallLayout } from "@/types/domain";
 import { HallLayoutEditor } from "./HallLayoutEditor";
 import { HallPreviewGrid } from "./HallPreviewGrid";
+import { compileLayoutLocally } from "@/utils/hall-layout-compiler";
 
 export function MeditationSeatsPage() {
   const [messageApi, contextHolder] = antdMessage.useMessage();
   const { currentSession } = useAppContext();
   const hallConfigsQuery = useHallConfigs(currentSession?.id);
+  const studentsQuery = useStudents(currentSession?.id);
   const [selectedConfigId, setSelectedConfigId] = useState<number>();
-  const [preview, setPreview] = useState<CompiledLayout | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
+  const [autoPreviewEnabled, setAutoPreviewEnabled] = useState(true);
+  const [localPreview, setLocalPreview] = useState<CompiledLayout | null>(null);
 
   const updateLayout = useUpdateHallLayout(currentSession?.id);
 
-  const configs = hallConfigsQuery.data ?? [];
+  const configs = useMemo(() => hallConfigsQuery.data ?? [], [hallConfigsQuery.data]);
+  const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data]);
+  const studentCount = students.length;
 
-  useEffect(() => {
-    if (!selectedConfigId && configs.length > 0) {
-      setSelectedConfigId(configs[0].id);
-    }
-  }, [configs, selectedConfigId]);
+  // 派生状态：自动选择第一个配置
+  const actualSelectedConfigId = useMemo(() => {
+    if (selectedConfigId) return selectedConfigId;
+    if (configs.length > 0) return configs[0].id;
+    return undefined;
+  }, [selectedConfigId, configs]);
 
   const selectedConfig: HallConfig | undefined = useMemo(() => {
-    return configs.find((cfg) => cfg.id === selectedConfigId) ?? configs[0];
-  }, [configs, selectedConfigId]);
+    return configs.find((cfg) => cfg.id === actualSelectedConfigId);
+  }, [configs, actualSelectedConfigId]);
 
   if (!currentSession) {
     return (
@@ -53,14 +58,29 @@ export function MeditationSeatsPage() {
     messageApi.success("布局已保存");
   };
 
-  const handlePreview = async () => {
-    if (!selectedConfig) return;
-    setPreviewLoading(true);
+  const handleLayoutChange = () => {
+    if (!autoPreviewEnabled || !selectedConfig) return;
+
+    // 使用前端本地编译生成预览
     try {
-      const compiled = await hallConfigApi.compileHallLayout(selectedConfig.id);
-      setPreview(compiled);
-    } finally {
-      setPreviewLoading(false);
+      const compiled = compileLayoutLocally(selectedConfig.layout);
+      setLocalPreview(compiled);
+    } catch (err) {
+      console.error('预览编译失败:', err);
+      setLocalPreview(null);
+    }
+  };
+
+  const handlePreviewUpdate = (layout: HallLayout) => {
+    if (!autoPreviewEnabled) return;
+
+    // 应用模板时立即更新预览
+    try {
+      const compiled = compileLayoutLocally(layout);
+      setLocalPreview(compiled);
+    } catch (err) {
+      console.error('预览编译失败:', err);
+      setLocalPreview(null);
     }
   };
 
@@ -72,9 +92,12 @@ export function MeditationSeatsPage() {
         <Button type="primary" icon={<ReloadOutlined />} onClick={handleGenerate}>
           生成座位
         </Button>
-        <Button icon={<EyeOutlined />} onClick={handlePreview} disabled={!selectedConfig}>
-          预览布局
-        </Button>
+        <Switch
+          checked={autoPreviewEnabled}
+          onChange={setAutoPreviewEnabled}
+          checkedChildren="实时预览"
+          unCheckedChildren="手动预览"
+        />
       </Space>
 
       <Row gutter={16}>
@@ -89,7 +112,7 @@ export function MeditationSeatsPage() {
                   <List.Item
                     onClick={() => {
                       setSelectedConfigId(item.id);
-                      setPreview(null);
+                      setLocalPreview(null);
                     }}
                     style={{
                       cursor: "pointer",
@@ -112,8 +135,15 @@ export function MeditationSeatsPage() {
             </Card>
           ) : (
             <Space direction="vertical" size="large" style={{ width: "100%" }}>
-              <HallLayoutEditor layout={selectedConfig.layout} loading={updateLayout.isLoading} onSubmit={handleSaveLayout} />
-              <HallPreviewGrid layout={preview ?? undefined} loading={previewLoading} />
+              <HallLayoutEditor
+                layout={selectedConfig.layout}
+                loading={updateLayout.isLoading}
+                onSubmit={handleSaveLayout}
+                onValuesChange={handleLayoutChange}
+                onPreviewUpdate={handlePreviewUpdate}
+                studentCount={studentCount}
+              />
+              <HallPreviewGrid layout={localPreview ?? undefined} loading={false} />
             </Space>
           )}
         </Col>
