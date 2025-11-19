@@ -22,6 +22,7 @@ import dayjs from "dayjs";
 import { PageHeader } from "@/components/common/PageHeader";
 import { useAppContext } from "@/state/app-context";
 import { sessionApi } from "@/services/api";
+import type { Session } from "@/types/domain";
 
 type CourseConfigForm = {
   teacher1Name?: string;
@@ -38,6 +39,24 @@ type CourseConfigForm = {
 
 export function CourseConfigPage() {
   const { currentSession } = useAppContext();
+
+  if (!currentSession) {
+    return (
+      <Card>
+        <PageHeader title="课程配置" description="请选择课程会期后配置讲师与禅堂信息" />
+        <Empty />
+      </Card>
+    );
+  }
+
+  return <CourseConfigForm currentSession={currentSession} />;
+}
+
+interface CourseConfigFormProps {
+  currentSession: Session;
+}
+
+function CourseConfigForm({ currentSession }: CourseConfigFormProps) {
   const [form] = Form.useForm<CourseConfigForm>();
   const { message } = App.useApp();
   const courseGenderType = Form.useWatch("courseGenderType", form);
@@ -71,15 +90,6 @@ export function CourseConfigPage() {
     };
     load();
   }, [currentSession, form]);
-
-  if (!currentSession) {
-    return (
-      <Card>
-        <PageHeader title="课程配置" description="请选择课程会期后配置讲师与禅堂信息" />
-        <Empty />
-      </Card>
-    );
-  }
 
   const handleSubmit = async (values: CourseConfigForm) => {
     try {

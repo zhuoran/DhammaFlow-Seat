@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Alert, App, Button, Card, Col, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import type { Bed, Room } from "@/types/domain";
+import type { Bed, Center, Room } from "@/types/domain";
 import { PageHeader } from "@/components/common/PageHeader";
 import { useAppContext } from "@/state/app-context";
 import { bedApi } from "@/services/api";
@@ -24,8 +24,26 @@ interface RoomStats {
 }
 
 export function RoomsPage() {
-  const { message } = App.useApp();
   const { currentCenter } = useAppContext();
+
+  if (!currentCenter) {
+    return (
+      <Card>
+        <PageHeader title="房间管理" description="请选择禅修中心后管理房间" />
+        <Alert message="未选择禅修中心" type="info" />
+      </Card>
+    );
+  }
+
+  return <RoomsPageContent currentCenter={currentCenter} />;
+}
+
+interface RoomsPageContentProps {
+  currentCenter: Center;
+}
+
+function RoomsPageContent({ currentCenter }: RoomsPageContentProps) {
+  const { message } = App.useApp();
   const { data: rooms, isLoading, refetch } = useRooms(currentCenter?.id);
   const mutation = useRoomMutations(currentCenter?.id ?? 0);
   const [filterGender, setFilterGender] = useState<string>();
@@ -139,13 +157,22 @@ export function RoomsPage() {
   const handleSaveBed = async () => {
     if (!selectedRoom) return;
     try {
-      const values = await bedForm.validateFields();
-      await bedApi.createBed({
-        ...values,
-        roomId: selectedRoom.id,
-        status: values.status ?? "AVAILABLE",
+      // 保留现有表单校验（床号/位置/状态），但在当前模型下仅通过容量控制床位数量
+      await bedForm.validateFields();
+
+      const currentBeds = bedsByRoom[selectedRoom.id] ?? [];
+      const currentCapacity = selectedRoom.capacity ?? currentBeds.length;
+      const nextCapacity = Math.max(currentCapacity, currentBeds.length) + 1;
+
+      await mutation.update.mutateAsync({
+        id: selectedRoom.id,
+        payload: {
+          ...selectedRoom,
+          capacity: nextCapacity,
+        },
       });
-      message.success("床位已创建");
+
+      message.success("房间容量已增加 1 个床位");
       const list = await bedApi.fetchBeds(selectedRoom.id);
       setBedsByRoom((prev) => ({ ...prev, [selectedRoom.id]: list }));
       setBedModalOpen(false);
@@ -154,12 +181,34 @@ export function RoomsPage() {
     }
   };
 
-  const handleDeleteBed = async (bed: Bed) => {
-    await bedApi.deleteBed(bed.id);
-    message.success("床位已删除");
-    if (selectedRoom) {
-      const list = await bedApi.fetchBeds(selectedRoom.id);
-      setBedsByRoom((prev) => ({ ...prev, [selectedRoom.id]: list }));
+  const handleDeleteBed = async (room: Room, bed: Bed) => {
+    const beds = bedsByRoom[room.id] ?? [];
+    const currentCapacity = room.capacity ?? beds.length;
+
+    // 仅允许删除“最后一个”床位，避免中间床号被移除导致混乱
+    if (bed.bedNumber !== currentCapacity) {
+      message.warning("当前仅支持删除最后一个床位，如需调整结构请在房间编辑中修改容量。");
+      return;
+    }
+
+    if (currentCapacity <= 1) {
+      message.warning("房间至少保留 1 个床位，如需关闭请删除房间。");
+      return;
+    }
+
+    try {
+      await mutation.update.mutateAsync({
+        id: room.id,
+        payload: {
+          ...room,
+          capacity: currentCapacity - 1,
+        },
+      });
+      message.success("房间容量已减少 1 个床位");
+      const list = await bedApi.fetchBeds(room.id);
+      setBedsByRoom((prev) => ({ ...prev, [room.id]: list }));
+    } catch (error) {
+      console.error(error);
     }
   };
 
@@ -321,7 +370,7 @@ export function RoomsPage() {
                           type="link"
                           danger
                           icon={<DeleteOutlined />}
-                          onClick={() => handleDeleteBed(bed)}
+                          onClick={() => handleDeleteBed(record, bed)}
                         />
                       </Tag>
                     ))}

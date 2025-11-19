@@ -18,15 +18,33 @@ import {
 } from "antd";
 import { UploadOutlined, EditOutlined, DeleteOutlined, UserAddOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import type { Student } from "@/types/domain";
+import type { Session, Student } from "@/types/domain";
 import { PageHeader } from "@/components/common/PageHeader";
 import { useAppContext } from "@/state/app-context";
 import { useStudents, useStudentMutations } from "@/hooks/queries";
 import { studentApi } from "@/services/api";
 
 export function StudentsPage() {
-  const { message } = App.useApp();
   const { currentSession } = useAppContext();
+
+  if (!currentSession) {
+    return (
+      <Card>
+        <PageHeader title="学员管理" description="请选择课程会期后进行学员管理" />
+        <Empty description="未选择课程会期" />
+      </Card>
+    );
+  }
+
+  return <StudentsPageContent currentSession={currentSession} />;
+}
+
+interface StudentsPageContentProps {
+  currentSession: Session;
+}
+
+function StudentsPageContent({ currentSession }: StudentsPageContentProps) {
+  const { message } = App.useApp();
   const { data: students, isLoading, refetch } = useStudents(currentSession?.id);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -87,6 +105,29 @@ export function StudentsPage() {
       render: (gender: Student["gender"]) => (gender === "M" ? "男" : "女"),
     },
     { title: "手机号", dataIndex: "phone", width: 140 },
+    {
+      title: "上课次数 (10,4,20,30,45,服)",
+      dataIndex: "courseTimes",
+      width: 220,
+      render: (_, record) => {
+        const {
+          course10dayTimes = 0,
+          course4mindfulnessTimes = 0,
+          course20dayTimes = 0,
+          course30dayTimes = 0,
+          course45dayTimes = 0,
+          serviceTimes = 0,
+        } = record;
+        return [
+          course10dayTimes,
+          course4mindfulnessTimes,
+          course20dayTimes,
+          course30dayTimes,
+          course45dayTimes,
+          serviceTimes,
+        ].join(",");
+      },
+    },
     {
       title: "学员类型",
       dataIndex: "studentType",

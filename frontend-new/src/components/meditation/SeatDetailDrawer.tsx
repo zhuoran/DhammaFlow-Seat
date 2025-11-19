@@ -14,25 +14,44 @@ interface SeatDetailDrawerProps {
 }
 
 /**
- * 座位详情抽屉
- * 类似影院选座的侧边栏，用于查看和编辑座位信息
+ * 座位详情抽屉（外层包装）
+ * 负责根据 seat/open 决定是否渲染内部带表单的内容，
+ * 避免在 seat 为空时渲染依赖 seat 的 UI 或逻辑。
  */
 export function SeatDetailDrawer({ seat, open, students, onClose, onUpdate }: SeatDetailDrawerProps) {
+  if (!open || !seat) {
+    return null;
+  }
+
+  return (
+    <SeatDetailDrawerContent
+      seat={seat}
+      open={open}
+      students={students}
+      onClose={onClose}
+      onUpdate={onUpdate}
+    />
+  );
+}
+
+interface SeatDetailDrawerContentProps extends Omit<SeatDetailDrawerProps, "seat"> {
+  seat: MeditationSeat;
+}
+
+/**
+ * 座位详情抽屉内部实现
+ * 此组件假定 seat 一定非空，并在其中使用 Form.useForm。
+ */
+function SeatDetailDrawerContent({ seat, open, students, onClose, onUpdate }: SeatDetailDrawerContentProps) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [messageApi, contextHolder] = antdMessage.useMessage();
 
   useEffect(() => {
-    if (seat) {
-      form.setFieldsValue({
-        studentId: seat.studentId,
-      });
-    }
+    form.setFieldsValue({
+      studentId: seat.studentId,
+    });
   }, [seat, form]);
-
-  if (!seat) {
-    return null;
-  }
 
   const handleAssign = async () => {
     const values = await form.validateFields();
@@ -79,7 +98,7 @@ export function SeatDetailDrawer({ seat, open, students, onClose, onUpdate }: Se
 
   // 过滤可分配的学员（同性别、未分配座位）
   const availableStudents = students.filter(
-    (student) => student.gender === seat.gender && student.status !== 'assigned_seat'
+    (student) => student.gender === seat.gender && student.status !== 'assigned_seat',
   );
 
   const currentStudent = students.find((s) => s.id === seat.studentId);
@@ -108,7 +127,7 @@ export function SeatDetailDrawer({ seat, open, students, onClose, onUpdate }: Se
         footer={
           <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
             <Button onClick={onClose}>取消</Button>
-            {seat.studentId && (
+            {!!seat.studentId && (
               <Button danger onClick={handleUnassign} loading={loading}>
                 取消分配
               </Button>
@@ -121,13 +140,21 @@ export function SeatDetailDrawer({ seat, open, students, onClose, onUpdate }: Se
       >
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <Descriptions column={1} bordered size="small">
-            <Descriptions.Item label="座位编号">{seat.seatNumber}</Descriptions.Item>
-            <Descriptions.Item label="区域">{seat.regionCode}</Descriptions.Item>
+            <Descriptions.Item label="座位编号">
+              {seat.seatNumber}
+            </Descriptions.Item>
+            <Descriptions.Item label="区域">
+              {seat.regionCode}
+            </Descriptions.Item>
             <Descriptions.Item label="位置">
               第 {seat.rowIndex + 1} 排 第 {seat.colIndex + 1} 列
             </Descriptions.Item>
             <Descriptions.Item label="性别">
-              {seat.gender === 'M' ? '男众' : seat.gender === 'F' ? '女众' : '-'}
+              {seat.gender === 'M'
+                ? '男众'
+                : seat.gender === 'F'
+                  ? '女众'
+                  : '-'}
             </Descriptions.Item>
             <Descriptions.Item label="状态">{getSeatStatusTag()}</Descriptions.Item>
           </Descriptions>

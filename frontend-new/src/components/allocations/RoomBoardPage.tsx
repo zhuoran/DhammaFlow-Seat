@@ -288,6 +288,31 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
               occupant?.student?.city ? truncateText(occupant.student.city, 9) : null,
             ].filter(Boolean);
             const detail = detailParts.join(" · ") || "信息不全";
+
+            const student = occupant?.student;
+            const practiceSummary = student
+              ? [
+                  student.course10dayTimes ?? 0,
+                  student.course4mindfulnessTimes ?? 0,
+                  student.course20dayTimes ?? 0,
+                  student.course30dayTimes ?? 0,
+                  student.course45dayTimes ?? 0,
+                  student.serviceTimes ?? 0,
+                ].join(",")
+              : null;
+
+            let typeLabel: string | undefined;
+            if (student?.studentType === "monk") {
+              typeLabel = "法师";
+            } else if (
+              student &&
+              ((student.studyTimes ?? student.totalPractices ?? 0) > 0 || student.studentType === "old_student")
+            ) {
+              typeLabel = "旧生";
+            } else if (student) {
+              // 默认视为新生（包括 studentType 为空且无上课记录的情况）
+              typeLabel = "新生";
+            }
             const slotClassName = [gridClass(Boolean(occupant), isSelected), manualOpsAllowed ? "" : "disabled"]
               .filter(Boolean)
               .join(" ");
@@ -306,6 +331,7 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
                     <Space align="center" size={6}>
                       <Typography.Text strong>
                         {occupant.student?.name ?? "未知"}
+                        {typeLabel ? `（${typeLabel}）` : ""}
                         {companionLabel ? `（${companionLabel}）` : ""}
                       </Typography.Text>
                       {bed.bedNumber !== undefined && (
@@ -317,6 +343,11 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
                     <Typography.Text type="secondary" className="bed-detail">
                       {detail}
                     </Typography.Text>
+                    {practiceSummary && (
+                      <Typography.Text type="secondary" className="bed-detail">
+                        {practiceSummary}
+                      </Typography.Text>
+                    )}
                     {manualOpsAllowed && (
                       <Button
                         size="small"
@@ -686,22 +717,41 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
           ) : (
             <Card size="small" styles={{ body: { padding: 8 } }}>
               <Space wrap>
-                {pendingStudents.map((stu) => (
-                  <Tag
-                    key={stu.id}
-                    color={selectedStudentId === stu.id ? "blue" : "default"}
-                    style={{
-                      cursor: "pointer",
-                      border: selectedStudentId === stu.id ? "2px solid #1890ff" : "1px solid #d9d9d9",
-                      fontWeight: selectedStudentId === stu.id ? "bold" : "normal",
-                      transform: selectedStudentId === stu.id ? "scale(1.05)" : "scale(1)",
-                      transition: "all 0.2s ease"
-                    }}
-                    onClick={() => setSelectedStudentId(stu.id)}
-                  >
-                    {stu.studentNumber ?? "-"} {stu.name}
-                  </Tag>
-                ))}
+                {pendingStudents.map((stu) => {
+                  const ageLabel = stu.age ? `${stu.age}岁` : "";
+                  const cityLabel = stu.city ? truncateText(stu.city, 8) : "";
+                  const practiceSummary = [
+                    stu.course10dayTimes ?? 0,
+                    stu.course4mindfulnessTimes ?? 0,
+                    stu.course20dayTimes ?? 0,
+                    stu.course30dayTimes ?? 0,
+                    stu.course45dayTimes ?? 0,
+                    stu.serviceTimes ?? 0,
+                  ].join(",");
+                  return (
+                    <Tag
+                      key={stu.id}
+                      color={selectedStudentId === stu.id ? "blue" : "default"}
+                      style={{
+                        cursor: "pointer",
+                        border: selectedStudentId === stu.id ? "2px solid #1890ff" : "1px solid #d9d9d9",
+                        fontWeight: selectedStudentId === stu.id ? "bold" : "normal",
+                        transform: selectedStudentId === stu.id ? "scale(1.05)" : "scale(1)",
+                        transition: "all 0.2s ease",
+                        maxWidth: 260,
+                        whiteSpace: "normal",
+                      }}
+                      onClick={() => setSelectedStudentId(stu.id)}
+                    >
+                      <div>
+                        <strong>{stu.studentNumber ?? "-"}</strong> {stu.name}
+                        {ageLabel && <> · {ageLabel}</>}
+                        {cityLabel && <> · {cityLabel}</>}
+                      </div>
+                      <div style={{ fontSize: 11, marginTop: 2 }}>{practiceSummary}</div>
+                    </Tag>
+                  );
+                })}
               </Space>
             </Card>
           )}
