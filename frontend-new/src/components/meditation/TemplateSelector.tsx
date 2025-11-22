@@ -1,75 +1,78 @@
 'use client'
 
-import { useState } from 'react'
-import { Button, Card, Col, Divider, Modal, Row, Space, Tag, Typography } from 'antd'
-import { LayoutOutlined, CheckCircleOutlined } from '@ant-design/icons'
-import { HALL_TEMPLATES, type HallTemplate } from '@/constants/hall-templates'
-import type { HallLayout } from '@/types/domain'
+import { useMemo } from 'react'
+import { Card, Col, Row, Space, Tag, Typography } from 'antd'
+import { CheckCircleOutlined, StarOutlined } from '@ant-design/icons'
+import { HALL_TEMPLATES, type HallTemplateKey } from '@/constants/hall-templates'
+import { recommendTemplate } from '@/utils/hall-auto-config'
+import type { Student } from '@/types/domain'
 
 interface Props {
-  onSelectTemplate: (layout: HallLayout) => void
+  students: Student[]
+  courseGenderType?: string
+  onSelect: (templateKey: HallTemplateKey) => void
+  selectedTemplate: HallTemplateKey | null
+  mode?: 'inline' | 'modal'
 }
 
-export function TemplateSelector({ onSelectTemplate }: Props) {
-  const [open, setOpen] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState<HallTemplate | null>(null)
+export function TemplateSelector({
+  students,
+  courseGenderType,
+  onSelect,
+  selectedTemplate,
+  mode = 'inline',
+}: Props) {
+  // 自动推荐模板
+  const recommendedTemplate = useMemo(() => {
+    return recommendTemplate(students, courseGenderType || 'co-ed')
+  }, [students, courseGenderType])
 
-  const handleApply = () => {
-    if (!selectedTemplate) return
-
-    onSelectTemplate({
-      originRow: 0,
-      originCol: 0,
-      ...selectedTemplate.layout,
-    })
-
-    setOpen(false)
-    setSelectedTemplate(null)
-  }
-
-  return (
-    <>
-      <Button icon={<LayoutOutlined />} onClick={() => setOpen(true)}>
-        选择模板
-      </Button>
-
-      <Modal
-        open={open}
-        onCancel={() => {
-          setOpen(false)
-          setSelectedTemplate(null)
-        }}
-        onOk={handleApply}
-        okText="应用模板"
-        cancelText="取消"
-        width={900}
-        okButtonProps={{ disabled: !selectedTemplate }}
-        title="选择禅堂布局模板"
-      >
-        <Typography.Paragraph type="secondary">
-          选择一个预设模板快速开始配置，应用后可继续调整参数
-        </Typography.Paragraph>
-
-        <Divider />
+  // 内联模式：直接显示3个模板卡片
+  if (mode === 'inline') {
+    return (
+      <div>
+        {recommendedTemplate && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <Space>
+              <StarOutlined className="text-blue-500" />
+              <Typography.Text>
+                系统推荐：<Typography.Text strong>{HALL_TEMPLATES.find(t => t.id === recommendedTemplate)?.name}</Typography.Text>
+                （{students.filter(s => s.gender === 'M').length}位男众，{students.filter(s => s.gender === 'F').length}位女众）
+              </Typography.Text>
+            </Space>
+          </div>
+        )}
 
         <Row gutter={[16, 16]}>
           {HALL_TEMPLATES.map((template) => {
-            const isSelected = selectedTemplate?.id === template.id
+            const isSelected = selectedTemplate === template.id
+            const isRecommended = recommendedTemplate === template.id
 
             return (
-              <Col key={template.id} span={12}>
+              <Col key={template.id} xs={24} sm={24} md={8}>
                 <Card
                   hoverable
-                  onClick={() => setSelectedTemplate(template)}
+                  onClick={() => onSelect(template.id as HallTemplateKey)}
                   style={{
-                    borderColor: isSelected ? '#1890ff' : undefined,
-                    borderWidth: isSelected ? 2 : 1,
+                    borderColor: isSelected
+                      ? '#1890ff'
+                      : isRecommended
+                        ? '#52c41a'
+                        : '#d9d9d9',
+                    borderWidth: isSelected || isRecommended ? 2 : 1,
                   }}
                   styles={{ body: { padding: 16 } }}
                 >
                   <Space direction="vertical" size="small" style={{ width: '100%' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography.Text strong>{template.name}</Typography.Text>
+                      <Space>
+                        <Typography.Text strong>{template.name}</Typography.Text>
+                        {isRecommended && (
+                          <Tag color="green" icon={<StarOutlined />}>
+                            推荐
+                          </Tag>
+                        )}
+                      </Space>
                       {isSelected && <CheckCircleOutlined style={{ color: '#1890ff', fontSize: 18 }} />}
                     </div>
 
@@ -79,20 +82,15 @@ export function TemplateSelector({ onSelectTemplate }: Props) {
 
                     <Space wrap>
                       <Tag color="blue">
-                        {template.layout.totalRows}行 × {template.layout.totalCols}列
+                        默认 {template.layout.totalRows}行 × {template.layout.totalCols}列
                       </Tag>
-                      <Tag color="green">容量 {template.capacity} 座</Tag>
-                      <Tag color="orange">适合 {template.targetStudents}</Tag>
+                      <Tag color="purple">
+                        {template.templateType}
+                      </Tag>
                     </Space>
 
-                    <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>
-                      分区：
-                      {template.layout.sections?.map((section, idx) => (
-                        <span key={idx}>
-                          {idx > 0 && '、'}
-                          {section.name}
-                        </span>
-                      ))}
+                    <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
+                      {template.description}
                     </div>
                   </Space>
                 </Card>
@@ -100,7 +98,10 @@ export function TemplateSelector({ onSelectTemplate }: Props) {
             )
           })}
         </Row>
-      </Modal>
-    </>
-  )
+      </div>
+    )
+  }
+
+  // Modal模式（暂时不实现，因为用户要求取消弹窗）
+  return null
 }

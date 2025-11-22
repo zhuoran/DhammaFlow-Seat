@@ -131,14 +131,43 @@ export interface AllocationConflict {
 }
 
 export type SeatSectionPurpose = "MONK" | "OLD_STUDENT" | "NEW_STUDENT" | "WORKER" | "RESERVED" | "MIXED";
+export type FillDirection = "ROW_MAJOR" | "COLUMN_MAJOR";
 
-export interface HallSection {
+export interface NumberingConfig {
+  mode?: string;
+  prefix?: string;
+  startNumber?: number;
+}
+
+export interface SeatSection {
   name: string;
   purpose: SeatSectionPurpose;
   rowStart: number;
   rowEnd: number;
   colStart: number;
   colEnd: number;
+  fillDirection?: FillDirection;
+  numberingOverride?: NumberingConfig;
+  capacity?: number;
+}
+
+export interface ReservedSlot {
+  row: number;
+  col: number;
+  reason?: string;
+}
+
+export interface MonkSeatConfig {
+  enabled?: boolean;
+  rowStart?: number;
+  rowEnd?: number;
+  colStart?: number;
+  colEnd?: number;
+}
+
+export interface HighlightRule {
+  condition?: string;
+  color?: string;
 }
 
 export interface HallLayout {
@@ -146,8 +175,21 @@ export interface HallLayout {
   originCol?: number;
   totalRows?: number;
   totalCols?: number;
-  sections?: HallSection[];
+  autoRows?: boolean;
+  autoCols?: boolean;
+  rowSpacing?: number;
+  colSpacing?: number;
+  sections?: SeatSection[];
+  reservedSlots?: ReservedSlot[];
+  monkSeats?: MonkSeatConfig;
+  numbering?: NumberingConfig;
+  highlightRules?: HighlightRule[];
+  supportedGenders?: string[];
+  usageMode?: string;
 }
+
+// 为了向后兼容，保留 HallSection 作为 SeatSection 的别名
+export type HallSection = SeatSection;
 
 export interface HallConfig {
   id: number;
