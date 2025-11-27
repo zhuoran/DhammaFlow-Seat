@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, Card, Empty, Space, Statistic, Row, Col, message as antdMessage } from "antd";
 import { ReloadOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined } from "@ant-design/icons";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -28,9 +28,29 @@ export function SeatManagementPage() {
   const [selectedSeat, setSelectedSeat] = useState<MeditationSeat | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const seats = seatsQuery.data ?? [];
+  const seats = useMemo(() => seatsQuery.data ?? [], [seatsQuery.data]);
   const stats = statsQuery.data;
-  const students = studentsQuery.data ?? [];
+  const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data]);
+
+  const enrichedSeats = useMemo(() => {
+    return seats.map((seat) => {
+      const student = students.find((s) => s.id === seat.studentId);
+      const totalCourseTimes =
+        (student?.course10dayTimes ?? 0) +
+        (student?.course4mindfulnessTimes ?? 0) +
+        (student?.course20dayTimes ?? 0) +
+        (student?.course30dayTimes ?? 0) +
+        (student?.course45dayTimes ?? 0);
+      return {
+        ...seat,
+        studentName: student?.name || seat.studentName,
+        age: student?.age,
+        studyTimes: student?.studyTimes,
+        serviceTimes: student?.serviceTimes,
+        totalCourseTimes,
+      };
+    });
+  }, [seats, students]);
 
   if (!currentSession) {
     return (
@@ -144,7 +164,7 @@ export function SeatManagementPage() {
 
         {/* 座位图画布 */}
         <SeatMapCanvas
-          seats={seats}
+          seats={enrichedSeats}
           loading={seatsQuery.isLoading}
           selectedSeatId={selectedSeat?.id}
           onSeatClick={handleSeatClick}

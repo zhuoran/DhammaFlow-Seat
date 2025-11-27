@@ -72,10 +72,12 @@ export function calculateStudentStatistics(students: Student[]): StudentStatisti
 /**
  * 推荐模板（基于学员数据）
  */
+import type { HallTemplateKey } from '@/constants/hall-templates'
+
 export function recommendTemplate(
   students: Student[],
   courseGenderType?: string
-): string | null {
+): HallTemplateKey | null {
   const stats = calculateStudentStatistics(students)
   
   // 如果课程类型是双性，推荐双性课程模板

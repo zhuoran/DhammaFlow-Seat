@@ -17,4 +17,12 @@ public class SeatAllocationContext {
     private List<Student> oldStudents = new ArrayList<>();
     @Builder.Default
     private List<Student> newStudents = new ArrayList<>();
+    @Builder.Default
+    private List<Student> maleOldStudents = new ArrayList<>();
+    @Builder.Default
+    private List<Student> femaleOldStudents = new ArrayList<>();
+    @Builder.Default
+    private List<Student> maleNewStudents = new ArrayList<>();
+    @Builder.Default
+    private List<Student> femaleNewStudents = new ArrayList<>();
 }

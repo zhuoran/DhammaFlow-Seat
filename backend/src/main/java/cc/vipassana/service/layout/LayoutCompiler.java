@@ -31,37 +31,58 @@ public class LayoutCompiler {
     public CompiledLayout compile(HallLayout layout) {
         List<SeatCell> cells = new ArrayList<>();
         Map<String, SeatSection> sectionMap = new LinkedHashMap<>();
-        layout.getSections().forEach(section -> sectionMap.put(section.getName(), section));
+        if (layout.getSections() != null) {
+            layout.getSections().forEach(section -> sectionMap.put(section.getName(), section));
+        }
 
-        Set<String> reservedKey = layout.getReservedSlots().stream()
+        List<ReservedSlot> reservedSlots = layout.getReservedSlots() != null
+                ? layout.getReservedSlots()
+                : Collections.emptyList();
+        Set<String> reservedKey = reservedSlots.stream()
                 .map(slot -> key(slot.getRow(), slot.getCol()))
                 .collect(Collectors.toSet());
 
         int maxRow = 0;
         int maxCol = 0;
-        for (SeatSection section : layout.getSections()) {
-            if (section.getRowStart() == null || section.getRowEnd() == null
-                    || section.getColStart() == null || section.getColEnd() == null) {
-                continue;
-            }
-            for (int row = section.getRowStart(); row <= section.getRowEnd(); row++) {
-                for (int col = section.getColStart(); col <= section.getColEnd(); col++) {
-                    SeatCell cell = SeatCell.builder()
-                            .row(row)
-                            .col(col)
-                            .sectionName(section.getName())
-                            .purpose(section.getPurpose())
-                            .reserved(reservedKey.contains(key(row, col)))
-                            .build();
-                    cells.add(cell);
-                    maxRow = Math.max(maxRow, row);
-                    maxCol = Math.max(maxCol, col);
+        if (layout.getSections() != null) {
+            for (SeatSection section : layout.getSections()) {
+                if (section.getRowStart() == null || section.getRowEnd() == null
+                        || section.getColStart() == null || section.getColEnd() == null) {
+                    continue;
                 }
+
+                int rowStart = section.getRowStart();
+                int rowEndExclusive = section.getRowEnd();
+                int colStart = section.getColStart();
+                int colEndExclusive = section.getColEnd();
+
+                for (int row = rowStart; row < rowEndExclusive; row++) {
+                    for (int col = colStart; col < colEndExclusive; col++) {
+                        SeatCell cell = SeatCell.builder()
+                                .row(row)
+                                .col(col)
+                                .sectionName(section.getName())
+                                .purpose(section.getPurpose())
+                                .reserved(reservedKey.contains(key(row, col)))
+                                .build();
+                        cells.add(cell);
+                    }
+                }
+
+                // rowEnd/colEnd 在前端语义上是“结束位置的下一行/列”（半开区间）
+                maxRow = Math.max(maxRow, rowEndExclusive);
+                maxCol = Math.max(maxCol, colEndExclusive);
             }
         }
 
-        int totalRows = layout.getTotalRows() != null ? layout.getTotalRows() : maxRow + 1;
-        int totalCols = layout.getTotalCols() != null ? layout.getTotalCols() : maxCol + 1;
+        if (maxRow == 0 || maxCol == 0) {
+            // 如果没有显式的 section，按默认0起始的一行一列处理，避免0维度导致后续计算异常
+            maxRow = Math.max(maxRow, 1);
+            maxCol = Math.max(maxCol, 1);
+        }
+
+        int totalRows = layout.getTotalRows() != null ? layout.getTotalRows() : maxRow;
+        int totalCols = layout.getTotalCols() != null ? layout.getTotalCols() : maxCol;
 
         return CompiledLayout.builder()
                 .totalRows(totalRows)
@@ -113,9 +134,9 @@ public class LayoutCompiler {
                 .name(StringUtils.hasText(config.getRegionName()) ? config.getRegionName() : config.getRegionCode())
                 .purpose(resolvePurpose(config))
                 .rowStart(0)
-                .rowEnd(rows - 1)
+                .rowEnd(rows)
                 .colStart(0)
-                .colEnd(width - 1)
+                .colEnd(width)
                 .build();
 
         return HallLayout.builder()

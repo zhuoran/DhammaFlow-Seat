@@ -4,6 +4,7 @@ import cc.vipassana.common.ResponseResult;
 import cc.vipassana.dto.layout.CompiledLayout;
 import cc.vipassana.dto.layout.HallConfigResponse;
 import cc.vipassana.dto.layout.UpdateHallLayoutRequest;
+import cc.vipassana.dto.layout.UpsertHallLayoutRequest;
 import cc.vipassana.service.MeditationHallConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,5 +38,21 @@ public class MeditationHallConfigController {
     public ResponseResult<CompiledLayout> compile(@PathVariable Long id) {
         CompiledLayout compiled = hallConfigService.compile(id);
         return new ResponseResult<>(0, "编译禅堂配置成功", compiled);
+    }
+
+    /**
+     * 按会期写入/更新单条配置，并清理同会期其它配置
+     */
+    @PostMapping("/upsert")
+    public ResponseResult<HallConfigResponse> upsert(@RequestBody UpsertHallLayoutRequest request) {
+        HallConfigResponse response = hallConfigService.upsertBySession(
+                request.getSessionId(),
+                request.getCenterId(),
+                request.getLayout(),
+                request.getTemplateId(),
+                request.getNumberingType(),
+                request.getHallUsage()
+        );
+        return new ResponseResult<>(0, "保存禅堂配置成功", response);
     }
 }

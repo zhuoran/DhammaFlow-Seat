@@ -30,7 +30,7 @@ import java.util.*;
  * 系统启动时加载 YAML 配置文件，初始化中心、房间、禅堂等基础数据
  */
 @Slf4j
-@Component
+//@Component // 禁用启动时自动加载配置，避免覆盖现有配置
 public class ConfigLoader implements CommandLineRunner {
 
     @Autowired

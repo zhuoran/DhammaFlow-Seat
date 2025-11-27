@@ -6,7 +6,7 @@ import { ThunderboltOutlined, CheckCircleOutlined, TeamOutlined, ManOutlined, Wo
 import { PageHeader } from '@/components/common/PageHeader'
 import { useAppContext } from '@/state/app-context'
 import { meditationSeatApi } from '@/services/api'
-import { useHallConfigs, useUpdateHallLayout, useStudents } from '@/hooks/queries'
+import { useHallConfigs, useUpsertHallLayout, useStudents } from '@/hooks/queries'
 import { sessionApi } from '@/services/api'
 import type { HallLayout } from '@/types/domain'
 import { TemplateSelector } from './TemplateSelector'
@@ -19,11 +19,10 @@ export function MeditationSeatsPage() {
   const { currentSession } = useAppContext()
   const hallConfigsQuery = useHallConfigs(currentSession?.id)
   const studentsQuery = useStudents(currentSession?.id)
-  const updateLayout = useUpdateHallLayout(currentSession?.id)
+  const upsertLayout = useUpsertHallLayout(currentSession?.id)
 
   const [selectedTemplate, setSelectedTemplate] = useState<HallTemplateKey | null>(null)
   const [currentLayout, setCurrentLayout] = useState<HallLayout | null>(null)
-  const [selectedConfigId, setSelectedConfigId] = useState<number | null>(null)
   const [courseGenderType, setCourseGenderType] = useState<string | undefined>(undefined)
   const [totalRows, setTotalRows] = useState(10)
   const [totalCols, setTotalCols] = useState(8)
@@ -70,13 +69,13 @@ export function MeditationSeatsPage() {
     loadSessionConfig()
   }, [currentSession, students])
 
-  // 如果有已保存的配置，自动选择第一个
+  // 如果有已保存的配置，自动选择第一个（强制单一配置）
   const defaultConfig = useMemo(() => {
-    if (configs.length > 0 && !selectedConfigId) {
+    if (configs.length > 0) {
       return configs[0]
     }
-    return configs.find(c => c.id === selectedConfigId) || null
-  }, [configs, selectedConfigId])
+    return null
+  }, [configs])
 
   // 从已保存的配置恢复UI状态（初次加载时）
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -138,7 +137,7 @@ export function MeditationSeatsPage() {
     setCurrentLayout(autoConfig.layout)
     
     // 如果是混合园区，初始化区域行列数
-    if (templateKey === 'mixed-region') {
+    if (templateKey === 'co-ed') {
       const femaleSection = autoConfig.layout.sections?.find(s => s.name.includes('女'))
       const maleSection = autoConfig.layout.sections?.find(s => s.name.includes('男'))
       
@@ -210,7 +209,7 @@ export function MeditationSeatsPage() {
     message.success('布局已重新生成')
   }, [selectedTemplate, femaleRows, femaleCols, maleRows, maleCols, message])
 
-  // 保存配置
+  // 保存配置：始终覆盖当前会期唯一配置
   const handleSaveConfig = useCallback(async () => {
     if (!currentLayout) {
       message.warning('请先选择模板生成配置')
@@ -222,20 +221,20 @@ export function MeditationSeatsPage() {
       return
     }
 
-    // 如果有已存在的配置，更新它；否则创建新配置
-    if (defaultConfig) {
-      try {
-        await updateLayout.mutateAsync({ id: defaultConfig.id, layout: currentLayout })
-        message.success('配置已保存')
-        setSelectedConfigId(defaultConfig.id)
-      } catch {
-        message.error('保存配置失败')
-      }
-    } else {
-      // TODO: 创建新配置的API调用
-      message.info('创建新配置功能开发中')
+    try {
+      const updated = await upsertLayout.mutateAsync({
+        sessionId: currentSession.id,
+        centerId: currentSession.centerId,
+        layout: currentLayout,
+        templateId: selectedTemplate || undefined,
+        numberingType: selectedTemplate === 'co-ed' ? 'AB_SPLIT' : (currentLayout.numbering?.mode || 'SEQUENTIAL'),
+        hallUsage: selectedTemplate === 'co-ed' ? 'DUAL' : 'SINGLE',
+      })
+      message.success('配置已保存（覆盖当前会期唯一配置）')
+    } catch {
+      message.error('保存配置失败')
     }
-  }, [currentLayout, currentSession, defaultConfig, updateLayout, message])
+  }, [currentLayout, currentSession, selectedTemplate, upsertLayout, message])
 
   // 处理生成座位
   const handleGenerateSeats = useCallback(async () => {
@@ -276,6 +275,24 @@ export function MeditationSeatsPage() {
     return sum + rows * cols
   }, 0) || 0
 
+  const configSummary = (() => {
+    if (!defaultConfig || !defaultConfig.layout) return null
+    const { layout } = defaultConfig
+    const sections = layout.sections || []
+    const totalSeats = sections.reduce((sum, section) => {
+      return sum + (section.rowEnd - section.rowStart) * (section.colEnd - section.colStart)
+    }, 0)
+    const numberingMode = layout.numbering?.mode || 'SEQUENTIAL'
+    return {
+      id: defaultConfig.id,
+      totalRows: layout.totalRows,
+      totalCols: layout.totalCols,
+      totalSeats,
+      numberingMode,
+      sections,
+    }
+  })()
+
   return (
     <div>
       <PageHeader
@@ -284,6 +301,38 @@ export function MeditationSeatsPage() {
       />
 
       <Space direction="vertical" size="large" className="w-full mt-6">
+        {/* 已有配置概要 */}
+        {configSummary && (
+          <Card size="small" title="当前已保存配置" extra={<span>配置ID：{configSummary.id}</span>}>
+            <Row gutter={16}>
+              <Col span={6}>
+                <Statistic title="总行数" value={configSummary.totalRows} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="总列数" value={configSummary.totalCols} />
+              </Col>
+              <Col span={6}>
+                <Statistic title="总容量" value={configSummary.totalSeats} suffix="座" />
+              </Col>
+              <Col span={6}>
+                <Statistic title="编号模式" value={configSummary.numberingMode} />
+              </Col>
+            </Row>
+            <Divider />
+            <div className="text-sm text-gray-600">
+              {configSummary.sections.map(section => {
+                const rows = section.rowEnd - section.rowStart
+                const cols = section.colEnd - section.colStart
+                return (
+                  <div key={section.name}>
+                    {section.name}：{rows} 行 × {cols} 列（{rows * cols} 座）
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        )}
+
         {/* 1. 学员统计 - 精简显示，辅助决策 */}
         {hasStudents && (
           <Card size="small" title="本期学员概况">

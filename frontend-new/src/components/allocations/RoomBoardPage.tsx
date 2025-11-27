@@ -544,6 +544,10 @@ export function RoomBoardPage({ initialView = "workspace" }: RoomBoardProps) {
   };
 
   const executeAutoAllocate = async () => {
+    if (!currentSession) {
+      message.error("请先选择会期");
+      return;
+    }
     setAutoAllocating(true);
     try {
       await allocationApi.triggerAutoAllocation(currentSession.id);

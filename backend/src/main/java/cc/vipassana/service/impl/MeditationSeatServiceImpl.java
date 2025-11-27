@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -77,10 +78,11 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
             }
             // 2. 获取禅堂配置
             List<MeditationHallConfig> hallConfigs = meditationHallConfigMapper.selectBySessionId(sessionId);
-
-            if (hallConfigs.isEmpty()) {
-                log.warn("期次 {} 没有禅堂配置", sessionId);
-                return generatedSeats;
+            // 只保留 layout_config 非空的配置
+            hallConfigs.removeIf(cfg -> !StringUtils.hasText(cfg.getLayoutConfig()));
+            if (hallConfigs.size() != 1) {
+                log.warn("期次 {} 禅堂配置异常，找到 {} 条有效配置", sessionId, hallConfigs.size());
+                throw new RuntimeException("禅堂配置异常：需要且仅允许一条有效配置");
             }
 
             // 2. 获取该期次所有学员的分配信息（批量查询优化）
@@ -137,12 +139,12 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
     }
 
     private List<Student> filterStudentsByRegion(List<Student> students, String genderType) {
-        if ("mixed".equals(genderType)) {
+        if (genderType == null || "mixed".equalsIgnoreCase(genderType)) {
             return students;
         }
 
         return students.stream()
-                .filter(s -> genderType.equals(s.getGender()))
+                .filter(s -> genderType.equalsIgnoreCase(s.getGender()))
                 .collect(Collectors.toList());
     }
 

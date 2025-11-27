@@ -31,6 +31,7 @@ type CourseConfigForm = {
   location?: string;
   courseGenderType?: string;
   seatNumberingType?: string;
+  coursePlans?: Array<{ courseType?: string }>;
   meditationHallAWidth?: number;
   meditationHallARows?: number;
   meditationHallBWidth?: number;

@@ -9,6 +9,9 @@ import java.util.List;
 public interface MeditationHallConfigMapper {
     List<MeditationHallConfig> selectBySessionId(@Param("sessionId") Long sessionId);
     MeditationHallConfig selectById(@Param("id") Long id);
+    int deleteOthersInSession(@Param("sessionId") Long sessionId, @Param("id") Long id);
+    int deleteBySessionId(@Param("sessionId") Long sessionId);
+    MeditationHallConfig selectLatestBySessionId(@Param("sessionId") Long sessionId);
 
     /**
      * 根据中心和区域代码查询禅堂配置

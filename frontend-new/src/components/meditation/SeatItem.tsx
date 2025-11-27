@@ -20,15 +20,6 @@ interface SeatItemProps {
  */
 export function SeatItem({ seat, selected = false, onClick }: SeatItemProps) {
   const getSeatColor = (): string => {
-    if (seat.status === 'reserved') {
-      return '#F5F5F5';
-    }
-
-    if (seat.status === 'available') {
-      return '#E0E7FF';
-    }
-
-    // allocated
     if (seat.gender === 'M') {
       return '#4F6FAE';
     }
@@ -41,11 +32,6 @@ export function SeatItem({ seat, selected = false, onClick }: SeatItemProps) {
   };
 
   const getTextColor = (): string => {
-    if (seat.status === 'available' || seat.status === 'reserved') {
-      return '#666';
-    }
-
-    // allocated seats use white text
     return '#fff';
   };
 
@@ -56,8 +42,8 @@ export function SeatItem({ seat, selected = false, onClick }: SeatItemProps) {
   };
 
   const seatStyle: CSSProperties = {
-    width: '48px',
-    height: '48px',
+    width: '64px',
+    height: '64px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -99,12 +85,22 @@ export function SeatItem({ seat, selected = false, onClick }: SeatItemProps) {
       }}
       title={seat.studentName ? `${seat.seatNumber} - ${seat.studentName}` : seat.seatNumber}
     >
-      <div style={{ fontSize: '10px', opacity: 0.9 }}>{seat.seatNumber}</div>
+      <div style={{ fontSize: '11px', fontWeight: 600, opacity: 0.95 }}>
+        {seat.seatNumber}
+      </div>
       {seat.studentName && (
-        <div style={{ fontSize: '9px', opacity: 0.85, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', padding: '0 2px' }}>
-          {seat.studentName.length > 3 ? seat.studentName.slice(0, 3) : seat.studentName}
+        <div style={{ fontSize: '10px', opacity: 0.9, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: 'center', padding: '0 2px' }}>
+          {seat.studentName}
         </div>
       )}
+      <div style={{ fontSize: '9px', opacity: 0.85, marginTop: '1px', display: 'flex', gap: '4px', alignItems: 'center' }}>
+        {seat.age ? `${seat.age}岁` : ''}
+        {seat.studyTimes !== undefined ? `课${seat.studyTimes}` : ''}
+      </div>
+      <div style={{ fontSize: '9px', opacity: 0.85, marginTop: '1px', display: 'flex', gap: '4px', alignItems: 'center' }}>
+        {seat.serviceTimes !== undefined ? `服${seat.serviceTimes}` : ''}
+        {seat.totalCourseTimes !== undefined ? `修${seat.totalCourseTimes}` : ''}
+      </div>
     </div>
   );
 }

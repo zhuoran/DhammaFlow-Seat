@@ -242,6 +242,10 @@ export interface MeditationSeat {
   updatedAt?: string;
   // 前端扩展字段（用于显示）
   studentName?: string;
+  age?: number;
+  studyTimes?: number;
+  serviceTimes?: number;
+  totalCourseTimes?: number;
 }
 
 export interface SeatStatistics {

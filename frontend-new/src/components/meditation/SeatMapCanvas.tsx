@@ -17,8 +17,10 @@ interface RegionSeats {
   regionCode: string;
   regionName?: string;
   seats: MeditationSeat[];
-  maxRow: number;
-  maxCol: number;
+  minRow: number; // 该区域最小行号（用于归一化）
+  maxRow: number; // 该区域最大行号
+  minCol: number; // 该区域最小列号
+  maxCol: number; // 该区域最大列号
   gender?: 'M' | 'F';
 }
 
@@ -42,8 +44,12 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
 
     return Array.from(groups.entries())
       .map(([regionCode, regionSeats]) => {
-        const maxRow = Math.max(...regionSeats.map((s) => s.rowIndex), 0);
-        const maxCol = Math.max(...regionSeats.map((s) => s.colIndex), 0);
+        const rowIndices = regionSeats.map((s) => s.rowIndex);
+        const colIndices = regionSeats.map((s) => s.colIndex);
+        const maxRow = rowIndices.length ? Math.max(...rowIndices) : 0;
+        const maxCol = colIndices.length ? Math.max(...colIndices) : 0;
+        const minRow = rowIndices.length ? Math.min(...rowIndices) : 0;
+        const minCol = colIndices.length ? Math.min(...colIndices) : 0;
 
         // 统计区域内座位的性别分布，取主要性别
         const genderCount = { M: 0, F: 0 };
@@ -57,7 +63,9 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
           regionCode,
           regionName: regionSeats[0]?.regionCode,
           seats: regionSeats,
+          minRow,
           maxRow,
+          minCol,
           maxCol,
           gender,
         };
@@ -73,90 +81,109 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
   // 创建座位网格
   const createSeatGrid = (region: RegionSeats) => {
     const grid: (MeditationSeat | null)[][] = [];
+    const rows = region.maxRow - region.minRow + 1;
+    const cols = region.maxCol - region.minCol + 1;
 
     // 初始化网格
-    for (let row = 0; row <= region.maxRow; row++) {
+    for (let row = 0; row < rows; row++) {
       grid[row] = [];
-      for (let col = 0; col <= region.maxCol; col++) {
+      for (let col = 0; col < cols; col++) {
         grid[row][col] = null;
       }
     }
 
     // 填充座位
     region.seats.forEach((seat) => {
-      if (seat.rowIndex <= region.maxRow && seat.colIndex <= region.maxCol) {
-        grid[seat.rowIndex][seat.colIndex] = seat;
+      const normRow = seat.rowIndex - region.minRow;
+      const normCol = seat.colIndex - region.minCol;
+      if (normRow >= 0 && normRow < rows && normCol >= 0 && normCol < cols) {
+        grid[normRow][normCol] = seat;
       }
     });
 
     return grid;
   };
 
+  const resolveRegionLabel = (region: RegionSeats) => {
+    if (region.regionName) return region.regionName;
+    if (region.regionCode) return `${region.regionCode}区`;
+    return '禅堂区域';
+  };
+
+  const isFemaleRegion = (region: RegionSeats) => {
+    if (region.gender === 'F') return true;
+    if (region.gender === 'M') return false;
+    const code = region.regionCode.toUpperCase();
+    return code.startsWith('B'); // 约定 B=女众
+  };
+
   // 渲染单个区域的座位网格（不含Card外壳）
-  const renderRegionSeats = (region: RegionSeats, showLabel = true) => {
+  const renderRegionSeats = (
+    region: RegionSeats,
+    showLabel = true,
+    isLeftRegion?: boolean
+  ) => {
     const grid = createSeatGrid(region);
-    const totalRows = grid.length;
+    const actualRows = grid.length;
+    const femaleRegion = isFemaleRegion(region);
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div className="flex flex-col gap-2">
         {showLabel && (
-          <div style={{ textAlign: 'center', fontSize: '14px', fontWeight: 600, color: '#666' }}>
-            {region.regionCode}区 ({region.gender === 'M' ? '男众' : '女众'})
+          <div className="text-center text-sm font-semibold text-gray-600">
+            {resolveRegionLabel(region)} ({femaleRegion ? '女众' : '男众'})
           </div>
         )}
-        <div
-          style={{
-            display: 'inline-block',
-            backgroundColor: '#fff',
-            padding: '16px',
-            borderRadius: '8px',
-          }}
-        >
+        <div className="inline-block bg-white p-4 rounded-lg">
           {[...grid].reverse().map((row, reverseIdx) => {
             // 反转后：第1排在下方（接近老师），最后一排在上方
-            const rowIdx = totalRows - 1 - reverseIdx;
+            const rowIdx = actualRows - 1 - reverseIdx;
             const displayRowNumber = rowIdx + 1;
 
             return (
               <div
                 key={rowIdx}
-                style={{
-                  display: 'flex',
-                  gap: '6px',
-                  marginBottom: rowIdx < grid.length - 1 ? '6px' : 0,
-                  alignItems: 'center',
-                }}
+                className={`flex gap-1.5 items-center ${reverseIdx < grid.length - 1 ? 'mb-1.5' : ''}`}
               >
-                <div
-                  style={{
-                    width: '32px',
-                    textAlign: 'right',
-                    fontSize: '12px',
-                    color: '#999',
-                    marginRight: '8px',
-                  }}
-                >
+                <div className="w-8 text-right text-xs text-gray-500 mr-2">
                   第{displayRowNumber}排
                 </div>
-                {row.map((seat, colIdx) =>
-                  seat ? (
-                    <SeatItem
-                      key={seat.id}
-                      seat={seat}
-                      selected={seat.id === selectedSeatId}
-                      onClick={onSeatClick}
-                    />
-                  ) : (
-                    <div
-                      key={`empty-${rowIdx}-${colIdx}`}
-                      style={{
-                        width: '48px',
-                        height: '48px',
-                        backgroundColor: 'transparent',
-                      }}
-                    />
-                  )
-                )}
+                {/* 根据区域位置决定列顺序 */}
+                {isLeftRegion 
+                  ? /* 左侧区域（女众）：反转列顺序，1号在右侧（靠近中间） */
+                    [...row].reverse().map((seat, reverseColIdx) => {
+                      const colIdx = row.length - 1 - reverseColIdx;
+                      return seat ? (
+                        <SeatItem
+                          key={seat.id}
+                          seat={seat}
+                          selected={seat.id === selectedSeatId}
+                          onClick={onSeatClick}
+                        />
+                      ) : (
+                        <div
+                          key={`empty-${rowIdx}-${colIdx}`}
+                          className="w-12 h-12 bg-transparent"
+                        />
+                      );
+                    })
+                  : /* 右侧区域（男众）：正常顺序，1号在左侧（靠近中间） */
+                    row.map((seat, colIdx) => {
+                      return seat ? (
+                        <SeatItem
+                          key={seat.id}
+                          seat={seat}
+                          selected={seat.id === selectedSeatId}
+                          onClick={onSeatClick}
+                        />
+                      ) : (
+                        <div
+                          key={`empty-${rowIdx}-${colIdx}`}
+                          className="w-12 h-12 bg-transparent"
+                        />
+                      );
+                    })
+                }
               </div>
             );
           })}
@@ -180,7 +207,7 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
 
     const leftRegion = sortedRegions[0];
     const rightRegion = sortedRegions[1];
-
+    
     const totalStats = {
       total: leftRegion.seats.length + rightRegion.seats.length,
       allocated:
@@ -206,66 +233,40 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
         }
         styles={{ body: { padding: '24px', backgroundColor: '#fafafa' } }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+        <div className="flex flex-col gap-8">
           {/* 座位区域：左区 | 分割线 | 右区 */}
-          <div
-            style={{
-              display: 'flex',
-              gap: '24px',
-              alignItems: 'flex-start',
-              justifyContent: 'center',
-            }}
-          >
+          <div className="flex gap-6 items-end justify-center">
             {/* 左侧区域 */}
-            <div>{renderRegionSeats(leftRegion)}</div>
+            {renderRegionSeats(leftRegion, true, true)}
 
             {/* 中间分割线 */}
-            <div
-              style={{
-                width: '2px',
-                alignSelf: 'stretch',
-                backgroundColor: '#d9d9d9',
-                margin: '0 16px',
-              }}
-            />
+            <div className="w-0.5 self-stretch bg-gray-300 mx-4" />
 
             {/* 右侧区域 */}
-            <div>{renderRegionSeats(rightRegion)}</div>
+            {renderRegionSeats(rightRegion, true, false)}
           </div>
 
           {/* 老师法座区域 */}
-          <div
-            style={{
-              borderTop: '2px solid #d9d9d9',
-              paddingTop: '24px',
-              marginTop: '8px',
-            }}
-          >
+          <div className="border-t-2 border-gray-300 pt-6 mt-2">
             {sameTeacher ? (
               // 同一位老师：法座在正中间
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#999', marginBottom: '12px' }}>
+              <div className="text-center">
+                <div className="text-xs text-gray-500 mb-3">
                   老师法座
                 </div>
                 <TeacherSeat label="法座" />
               </div>
             ) : (
               // 不同老师：每个区域下方各有一个法座
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-around',
-                  gap: '48px',
-                }}
-              >
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '12px', color: '#999', marginBottom: '12px' }}>
+              <div className="flex justify-around gap-12">
+                <div className="text-center">
+                  <div className="text-xs text-gray-500 mb-3">
                     {leftRegion.regionCode}区老师法座
                   </div>
                   <TeacherSeat label="法座" regionCode={leftRegion.regionCode} />
                 </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '12px', color: '#999', marginBottom: '12px' }}>
+                <div className="text-center">
+                  <div className="text-xs text-gray-500 mb-3">
                     {rightRegion.regionCode}区老师法座
                   </div>
                   <TeacherSeat label="法座" regionCode={rightRegion.regionCode} />
@@ -299,18 +300,12 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
         }
         styles={{ body: { padding: '16px', backgroundColor: '#fafafa' } }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div className="flex flex-col gap-6">
           {renderRegionSeats(region, false)}
 
           {/* 单区域也显示法座 */}
-          <div
-            style={{
-              borderTop: '2px solid #d9d9d9',
-              paddingTop: '24px',
-              textAlign: 'center',
-            }}
-          >
-            <div style={{ fontSize: '12px', color: '#999', marginBottom: '12px' }}>
+          <div className="border-t-2 border-gray-300 pt-6 text-center">
+            <div className="text-xs text-gray-500 mb-3">
               老师法座
             </div>
             <TeacherSeat label="法座" />
@@ -324,7 +319,7 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
     return (
       <Card>
         <Spin tip="加载座位数据..." size="large">
-          <div style={{ padding: '40px', minHeight: '200px' }} />
+          <div className="p-10 min-h-[200px]" />
         </Spin>
       </Card>
     );
@@ -344,7 +339,7 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
   }
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+    <Space direction="vertical" size="large" className="w-full">
       {regionGroups.map((region) => renderSingleRegionLayout(region))}
     </Space>
   );

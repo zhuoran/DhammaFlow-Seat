@@ -144,4 +144,26 @@
         DELETE FROM meditation_hall_config WHERE id = #{id}
     </delete>
 
+    <delete id="deleteOthersInSession">
+        DELETE FROM meditation_hall_config WHERE session_id = #{sessionId} AND id != #{id}
+    </delete>
+
+    <delete id="deleteBySessionId">
+        DELETE FROM meditation_hall_config WHERE session_id = #{sessionId}
+    </delete>
+
+    <select id="selectLatestBySessionId" resultMap="BaseResultMap">
+        SELECT id, center_id, session_id, hall_name, region_name, region_code, valid_area,
+               begin_cell, row_offset, col_offset, max_rows, max_cols, used_rows, used_cols,
+               region_width, region_rows, is_auto_width, is_auto_rows,
+               numbering_type, seat_number_prefix, gender_separated, gender_type,
+               monk_start_cell, monk_max_count, monk_seat_prefix, old_student_reserved_list,
+               dhamma_worker_area1, dhamma_worker_area2, layout_config, supported_genders,
+               hall_usage, created_at, updated_at
+        FROM meditation_hall_config
+        WHERE session_id = #{sessionId}
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 1
+    </select>
+
 </mapper>

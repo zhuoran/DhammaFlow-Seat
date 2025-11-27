@@ -118,6 +118,19 @@ export function useUpdateHallLayout(sessionId?: number) {
   });
 }
 
+export function useUpsertHallLayout(sessionId?: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { sessionId: number; centerId?: number; layout: HallLayout; templateId?: string; numberingType?: string; hallUsage?: string }) =>
+      hallConfigApi.upsertHallLayout(payload),
+    onSuccess: async () => {
+      if (sessionId) {
+        await queryClient.invalidateQueries({ queryKey: ["hall-configs", sessionId] });
+      }
+    },
+  });
+}
+
 export function useStudentMutations(sessionId: number) {
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["students", sessionId] });

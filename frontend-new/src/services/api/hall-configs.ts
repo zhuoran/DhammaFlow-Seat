@@ -15,6 +15,18 @@ export async function updateHallLayout(id: number, layout: HallLayout): Promise<
   return response.data.data as HallConfig
 }
 
+export async function upsertHallLayout(params: {
+  sessionId: number
+  centerId?: number
+  layout: HallLayout
+  templateId?: string
+  numberingType?: string
+  hallUsage?: string
+}): Promise<HallConfig> {
+  const response = await apiClient.post<ApiResponse<HallConfig>>(`/hall-configs/upsert`, params)
+  return response.data.data as HallConfig
+}
+
 export async function compileHallLayout(id: number): Promise<CompiledLayout> {
   const response = await apiClient.post<ApiResponse<CompiledLayout>>(`/hall-configs/${id}/compile`)
   return response.data.data as CompiledLayout

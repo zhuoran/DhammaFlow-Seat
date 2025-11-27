@@ -16,6 +16,7 @@ import {
 } from 'antd'
 import { ThunderboltOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import type { Student, HallLayout } from '@/types/domain'
+import type { HallTemplateKey } from '@/constants/hall-templates'
 import { TemplateSelector } from './TemplateSelector'
 import { HallPreviewGrid } from './HallPreviewGrid'
 import {
@@ -39,7 +40,7 @@ export function AutoConfigWizard({
   onConfigGenerated,
   loading = false,
 }: Props) {
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<HallTemplateKey | null>(null)
   const [customRows, setCustomRows] = useState<number | null>(null)
   const [customCols, setCustomCols] = useState<number | null>(null)
 
@@ -50,13 +51,13 @@ export function AutoConfigWizard({
 
   // 推荐模板
   const recommendedTemplate = useMemo(() => {
-    return recommendTemplate(stats, courseGenderType)
-  }, [stats, courseGenderType])
+    return recommendTemplate(students, courseGenderType)
+  }, [students, courseGenderType])
 
   // 计算实际使用的模板ID（优先使用手动选择的，否则使用推荐的）
   const actualTemplateId = useMemo(() => {
-    return selectedTemplateId || recommendedTemplate?.id || null
-  }, [selectedTemplateId, recommendedTemplate?.id])
+    return selectedTemplateId || recommendedTemplate || null
+  }, [selectedTemplateId, recommendedTemplate])
 
   // 计算自动配置（直接使用 useMemo，不通过 state）
   const autoConfig = useMemo(() => {
@@ -80,19 +81,16 @@ export function AutoConfigWizard({
     }
   }, [autoConfig])
 
+  // 保留签名但内部直接应用 layout，避免未使用警告
+  // 保留签名供模板选择器调用，当前组件内部未直接使用
   const handleTemplateSelect = useCallback((layout: HallLayout) => {
-    // 根据layout的特征找到对应的模板
+    if (!layout) return
     const sections = layout.sections || []
-    
     if (sections.length === 2 && sections.every(s => s.purpose === 'MIXED')) {
-      setSelectedTemplateId('mixed-region')
-    } else if (sections.some(s => s.purpose === 'OLD_STUDENT' || s.purpose === 'NEW_STUDENT')) {
-      // 根据当前推荐模板判断是A区还是B区
-      if (recommendedTemplate) {
-        setSelectedTemplateId(recommendedTemplate.id)
-      }
+      setSelectedTemplateId('co-ed')
+    } else if (recommendedTemplate) {
+      setSelectedTemplateId(recommendedTemplate)
     }
-    
     setCustomRows(layout.totalRows || null)
     setCustomCols(layout.totalCols || null)
   }, [recommendedTemplate])
@@ -147,14 +145,19 @@ export function AutoConfigWizard({
         extra={
           recommendedTemplate && (
             <Typography.Text type="success">
-              <CheckCircleOutlined /> 系统推荐：{recommendedTemplate.name}
+              <CheckCircleOutlined /> 系统推荐：{HALL_TEMPLATES.find(t => t.id === recommendedTemplate)?.name}
             </Typography.Text>
           )
         }
       >
         <TemplateSelector
-          onSelectTemplate={handleTemplateSelect}
-          recommendedTemplateId={recommendedTemplate?.id}
+          students={students}
+          courseGenderType={courseGenderType}
+          onSelect={(templateKey) => {
+            setSelectedTemplateId(templateKey)
+          }}
+          selectedTemplate={selectedTemplateId}
+          mode="inline"
         />
       </Card>
 
@@ -266,4 +269,3 @@ export function AutoConfigWizard({
     </Space>
   )
 }
-
