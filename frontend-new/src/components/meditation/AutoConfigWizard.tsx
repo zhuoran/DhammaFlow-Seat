@@ -81,8 +81,8 @@ export function AutoConfigWizard({
     }
   }, [autoConfig])
 
-  // 保留签名但内部直接应用 layout，避免未使用警告
-  // 保留签名供模板选择器调用，当前组件内部未直接使用
+  // 保留签名但内部直接应用 layout，供模板选择器调用（当前组件未直接使用）
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleTemplateSelect = useCallback((layout: HallLayout) => {
     if (!layout) return
     const sections = layout.sections || []

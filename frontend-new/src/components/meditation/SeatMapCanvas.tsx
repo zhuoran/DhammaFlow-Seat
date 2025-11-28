@@ -1,15 +1,16 @@
-"use client";
+'use client';
 
-import { useMemo } from "react";
-import { Card, Empty, Space, Spin, Tag } from "antd";
-import type { MeditationSeat } from "@/types/domain";
-import { SeatItem } from "./SeatItem";
-import { TeacherSeat } from "./TeacherSeat";
+import { useEffect, useMemo } from 'react';
+import { Card, Empty, Space, Spin, Tag } from 'antd';
+import type { MeditationSeat } from '@/types/domain';
+import { SeatItem } from './SeatItem';
+import { TeacherSeat } from './TeacherSeat';
 
 interface SeatMapCanvasProps {
   seats: MeditationSeat[];
   loading?: boolean;
   selectedSeatId?: number;
+  highlightSeatId?: number;
   onSeatClick?: (seat: MeditationSeat) => void;
 }
 
@@ -29,7 +30,7 @@ interface RegionSeats {
  * 支持双区域合并显示（A区左、B区右，中间分割线）
  * 包含老师法坐区域
  */
-export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatClick }: SeatMapCanvasProps) {
+export function SeatMapCanvas({ seats, loading = false, selectedSeatId, highlightSeatId, onSeatClick }: SeatMapCanvasProps) {
   // 按区域分组座位
   const regionGroups = useMemo<RegionSeats[]>(() => {
     const groups = new Map<string, MeditationSeat[]>();
@@ -121,11 +122,34 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
   const renderRegionSeats = (
     region: RegionSeats,
     showLabel = true,
-    isLeftRegion?: boolean
+    isLeftRegion?: boolean,
+    alignRows?: number
   ) => {
     const grid = createSeatGrid(region);
     const actualRows = grid.length;
     const femaleRegion = isFemaleRegion(region);
+    const targetRows = alignRows ? Math.max(alignRows, actualRows) : actualRows;
+    const emptyRowsOnTop = Math.max(targetRows - actualRows, 0);
+
+    const rowsForRender = [
+      // 需要补齐的空白行（顶部留白，让左右区行数对齐）
+      ...Array.from({ length: emptyRowsOnTop }).map((_, idx) => ({
+        key: `empty-${idx}`,
+        displayRowNumber: targetRows - idx,
+        cells: null as (MeditationSeat | null)[] | null,
+        isPlaceholder: true,
+      })),
+      // 实际行（从最后一排到第一排，靠近法座的排号在最下方）
+      ...[...grid].reverse().map((row, reverseIdx) => {
+        const rowIdx = actualRows - 1 - reverseIdx;
+        return {
+          key: `row-${rowIdx}`,
+          displayRowNumber: rowIdx + 1,
+          cells: row,
+          isPlaceholder: false,
+        };
+      }),
+    ];
 
     return (
       <div className="flex flex-col gap-2">
@@ -135,55 +159,56 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
           </div>
         )}
         <div className="inline-block bg-white p-4 rounded-lg">
-          {[...grid].reverse().map((row, reverseIdx) => {
-            // 反转后：第1排在下方（接近老师），最后一排在上方
-            const rowIdx = actualRows - 1 - reverseIdx;
-            const displayRowNumber = rowIdx + 1;
-
+          {rowsForRender.map((rowData, renderIdx) => {
+            const { displayRowNumber, cells, isPlaceholder, key } = rowData;
+            const isLastRow = renderIdx === rowsForRender.length - 1;
             return (
               <div
-                key={rowIdx}
-                className={`flex gap-1.5 items-center ${reverseIdx < grid.length - 1 ? 'mb-1.5' : ''}`}
+                key={key}
+                className={`flex gap-2 items-center ${!isLastRow ? 'mb-2' : ''}`}
               >
-                <div className="w-8 text-right text-xs text-gray-500 mr-2">
+                <div className={`w-8 text-right text-xs mr-2 ${isPlaceholder ? 'text-gray-300' : 'text-gray-500'}`}>
                   第{displayRowNumber}排
                 </div>
-                {/* 根据区域位置决定列顺序 */}
-                {isLeftRegion 
-                  ? /* 左侧区域（女众）：反转列顺序，1号在右侧（靠近中间） */
-                    [...row].reverse().map((seat, reverseColIdx) => {
-                      const colIdx = row.length - 1 - reverseColIdx;
-                      return seat ? (
-                        <SeatItem
-                          key={seat.id}
-                          seat={seat}
-                          selected={seat.id === selectedSeatId}
-                          onClick={onSeatClick}
+                {isPlaceholder ? (
+                  <div style={{ width: '86px', height: '98px' }} />
+                ) : (
+                  // 根据区域位置决定列顺序
+                  (isLeftRegion
+                    ? [...cells!].reverse().map((seat, reverseColIdx) => {
+                        const colIdx = cells!.length - 1 - reverseColIdx;
+                        return seat ? (
+                          <SeatItem
+                            key={seat.id}
+                            seat={seat}
+                            selected={seat.id === selectedSeatId}
+                            onClick={onSeatClick}
+                            highlighted={seat.id === highlightSeatId}
+                          />
+                        ) : (
+                          <div
+                            key={`empty-${rowData.key}-${colIdx}`}
+                            style={{ width: '86px', height: '98px' }}
+                          />
+                        );
+                      })
+                    : cells!.map((seat, colIdx) => {
+                        return seat ? (
+                          <SeatItem
+                            key={seat.id}
+                            seat={seat}
+                            selected={seat.id === selectedSeatId}
+                            onClick={onSeatClick}
+                          highlighted={seat.id === highlightSeatId}
                         />
                       ) : (
-                        <div
-                          key={`empty-${rowIdx}-${colIdx}`}
-                          className="w-12 h-12 bg-transparent"
-                        />
-                      );
-                    })
-                  : /* 右侧区域（男众）：正常顺序，1号在左侧（靠近中间） */
-                    row.map((seat, colIdx) => {
-                      return seat ? (
-                        <SeatItem
-                          key={seat.id}
-                          seat={seat}
-                          selected={seat.id === selectedSeatId}
-                          onClick={onSeatClick}
-                        />
-                      ) : (
-                        <div
-                          key={`empty-${rowIdx}-${colIdx}`}
-                          className="w-12 h-12 bg-transparent"
-                        />
-                      );
-                    })
-                }
+                          <div
+                            key={`empty-${rowData.key}-${colIdx}`}
+                            style={{ width: '86px', height: '98px' }}
+                          />
+                        );
+                      }))
+                )}
               </div>
             );
           })}
@@ -207,6 +232,10 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
 
     const leftRegion = sortedRegions[0];
     const rightRegion = sortedRegions[1];
+    const maxRows = Math.max(
+      leftRegion.maxRow - leftRegion.minRow + 1,
+      rightRegion.maxRow - rightRegion.minRow + 1
+    );
     
     const totalStats = {
       total: leftRegion.seats.length + rightRegion.seats.length,
@@ -237,13 +266,13 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
           {/* 座位区域：左区 | 分割线 | 右区 */}
           <div className="flex gap-6 items-end justify-center">
             {/* 左侧区域 */}
-            {renderRegionSeats(leftRegion, true, true)}
+            {renderRegionSeats(leftRegion, true, true, maxRows)}
 
             {/* 中间分割线 */}
             <div className="w-0.5 self-stretch bg-gray-300 mx-4" />
 
             {/* 右侧区域 */}
-            {renderRegionSeats(rightRegion, true, false)}
+            {renderRegionSeats(rightRegion, true, false, maxRows)}
           </div>
 
           {/* 老师法座区域 */}
@@ -314,6 +343,19 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, onSeatCl
       </Card>
     );
   };
+
+  useEffect(() => {
+    if (!highlightSeatId) {
+      return;
+    }
+    const element = document.getElementById(`seat-card-${highlightSeatId}`);
+    if (element) {
+      element.classList.remove('seat-card-highlight');
+      void element.offsetWidth;
+      element.classList.add('seat-card-highlight');
+      element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    }
+  }, [highlightSeatId]);
 
   if (loading) {
     return (

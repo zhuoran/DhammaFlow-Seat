@@ -222,7 +222,7 @@ export function MeditationSeatsPage() {
     }
 
     try {
-      const updated = await upsertLayout.mutateAsync({
+      await upsertLayout.mutateAsync({
         sessionId: currentSession.id,
         centerId: currentSession.centerId,
         layout: currentLayout,

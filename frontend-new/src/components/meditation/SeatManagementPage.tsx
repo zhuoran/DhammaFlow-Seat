@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import { Button, Card, Empty, Space, Statistic, Row, Col, message as antdMessage } from "antd";
-import { ReloadOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined } from "@ant-design/icons";
-import { PageHeader } from "@/components/common/PageHeader";
-import { useAppContext } from "@/state/app-context";
-import { meditationSeatApi } from "@/services/api";
-import { useMeditationSeats, useSeatStatistics, useStudents } from "@/hooks/queries";
-import { useQueryClient } from "@tanstack/react-query";
-import type { MeditationSeat } from "@/types/domain";
-import { SeatMapCanvas } from "./SeatMapCanvas";
-import { SeatDetailDrawer } from "./SeatDetailDrawer";
+import { useMemo, useState } from 'react';
+import { Button, Card, Col, Empty, Input, Row, Space, Statistic, message as antdMessage } from 'antd';
+import { ReloadOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { PageHeader } from '@/components/common/PageHeader';
+import { useAppContext } from '@/state/app-context';
+import { meditationSeatApi } from '@/services/api';
+import { useMeditationSeats, useSeatStatistics, useStudents } from '@/hooks/queries';
+import { useQueryClient } from '@tanstack/react-query';
+import type { MeditationSeat } from '@/types/domain';
+import { SeatMapCanvas } from './SeatMapCanvas';
+import { SeatDetailDrawer } from './SeatDetailDrawer';
 
 /**
  * 电影院风格座位管理页面
@@ -27,6 +27,8 @@ export function SeatManagementPage() {
 
   const [selectedSeat, setSelectedSeat] = useState<MeditationSeat | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [highlightSeatId, setHighlightSeatId] = useState<number>();
+  const [searchValue, setSearchValue] = useState('');
 
   const seats = useMemo(() => seatsQuery.data ?? [], [seatsQuery.data]);
   const stats = statsQuery.data;
@@ -51,6 +53,13 @@ export function SeatManagementPage() {
       };
     });
   }, [seats, students]);
+
+  const resolvedHighlightSeatId = useMemo(() => {
+    if (!highlightSeatId) {
+      return undefined;
+    }
+    return enrichedSeats.some((seat) => seat.id === highlightSeatId) ? highlightSeatId : undefined;
+  }, [enrichedSeats, highlightSeatId]);
 
   if (!currentSession) {
     return (
@@ -101,17 +110,43 @@ export function SeatManagementPage() {
     await queryClient.invalidateQueries({ queryKey: ["students", currentSession.id] });
   };
 
+  const handleSearch = (value: string) => {
+    const keyword = value.trim().toLowerCase();
+    setSearchValue(value);
+    if (!keyword) {
+      setHighlightSeatId(undefined);
+      messageApi.info('请输入姓名、座号或房间床位');
+      return;
+    }
+
+    const match = enrichedSeats.find((seat) => {
+      const seatNumber = seat.seatNumber?.toLowerCase() ?? '';
+      const studentName = seat.studentName?.toLowerCase() ?? '';
+      const bed = seat.bedCode?.toLowerCase() ?? '';
+      return seatNumber.includes(keyword) || studentName.includes(keyword) || bed.includes(keyword);
+    });
+
+    if (match) {
+      setHighlightSeatId(match.id);
+      setSelectedSeat(match);
+    } else {
+      messageApi.warning('未找到匹配的座位');
+    }
+  };
+
   return (
     <div>
       {contextHolder}
-      <PageHeader
-        title="座位管理"
-        description="电影院风格座位可视化和分配管理"
-      />
+      <div className="no-print">
+        <PageHeader
+          title="座位管理"
+          description="电影院风格座位可视化和分配管理"
+        />
+      </div>
 
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* 顶部控制栏 */}
-        <Card>
+        <Card className="no-print">
           <Space size="middle" style={{ width: '100%', justifyContent: 'space-between' }}>
             <Space>
               <Button
@@ -131,34 +166,49 @@ export function SeatManagementPage() {
               </Button>
             </Space>
 
-            {/* 座位统计 */}
-            {stats && (
-              <Row gutter={16}>
-                <Col>
-                  <Statistic
-                    title="总座位"
-                    value={stats.totalSeats}
-                    prefix={<TeamOutlined />}
-                  />
-                </Col>
-                <Col>
-                  <Statistic
-                    title="已分配"
-                    value={stats.occupiedSeats}
-                    prefix={<CheckCircleOutlined />}
-                    valueStyle={{ color: '#3f8600' }}
-                  />
-                </Col>
-                <Col>
-                  <Statistic
-                    title="可用"
-                    value={stats.availableSeats}
-                    prefix={<ClockCircleOutlined />}
-                    valueStyle={{ color: '#1890ff' }}
-                  />
-                </Col>
-              </Row>
-            )}
+            <Space size="large" align="center">
+              <Space.Compact>
+                <Input
+                  placeholder="按姓名/座号/房间床位查找"
+                  allowClear
+                  value={searchValue}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  onPressEnter={() => handleSearch(searchValue)}
+                  style={{ width: 220 }}
+                />
+                <Button type="primary" onClick={() => handleSearch(searchValue)}>
+                  定位
+                </Button>
+              </Space.Compact>
+              {/* 座位统计 */}
+              {stats && (
+                <Row gutter={16}>
+                  <Col>
+                    <Statistic
+                      title="总座位"
+                      value={stats.totalSeats}
+                      prefix={<TeamOutlined />}
+                    />
+                  </Col>
+                  <Col>
+                    <Statistic
+                      title="已分配"
+                      value={stats.occupiedSeats}
+                      prefix={<CheckCircleOutlined />}
+                      valueStyle={{ color: '#3f8600' }}
+                    />
+                  </Col>
+                  <Col>
+                    <Statistic
+                      title="可用"
+                      value={stats.availableSeats}
+                      prefix={<ClockCircleOutlined />}
+                      valueStyle={{ color: '#1890ff' }}
+                    />
+                  </Col>
+                </Row>
+              )}
+            </Space>
           </Space>
         </Card>
 
@@ -167,6 +217,7 @@ export function SeatManagementPage() {
           seats={enrichedSeats}
           loading={seatsQuery.isLoading}
           selectedSeatId={selectedSeat?.id}
+          highlightSeatId={resolvedHighlightSeatId}
           onSeatClick={handleSeatClick}
         />
       </Space>
