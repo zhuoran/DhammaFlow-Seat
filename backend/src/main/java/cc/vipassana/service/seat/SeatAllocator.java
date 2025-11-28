@@ -133,21 +133,27 @@ public class SeatAllocator {
                                      MeditationHallConfig config,
                                      SeatCell cell,
                                      Student student,
-                                     String regionCode) {
+                                     String regionCode,
+                                     String seatGender) {
+        boolean hasStudent = student != null;
+        String resolvedGender = hasStudent && student.getGender() != null
+                ? student.getGender()
+                : seatGender;
+
         return MeditationSeat.builder()
                 .sessionId(sessionId)
                 .centerId(config.getCenterId())
                 .hallConfigId(config.getId())
                 .hallId(config.getId())
-                .studentId(student.getId())
+                .studentId(hasStudent ? student.getId() : null)
                 .seatType(resolveSeatType(cell.getPurpose()))
-                .isOldStudent("old_student".equals(inferStudentType(student)))
-                .gender(student.getGender())
-                .ageGroup(student.getAgeGroup())
+                .isOldStudent(hasStudent ? "old_student".equals(inferStudentType(student)) : null)
+                .gender(resolvedGender)
+                .ageGroup(hasStudent ? student.getAgeGroup() : null)
                 .regionCode(regionCode)
                 .rowIndex(cell.getRow())
                 .colIndex(cell.getCol())
-                .status("allocated")
+                .status(hasStudent ? "allocated" : "available")
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -310,7 +316,7 @@ public class SeatAllocator {
             if (target == null) {
                 continue;
             }
-            seats.add(buildSeat(sessionId, config, cell, target, resolveRegionCode(cell, config)));
+            seats.add(buildSeat(sessionId, config, cell, target, resolveRegionCode(cell, config), genderCode));
         }
 
         // 新生：找未占用的 cell，按列右->左竖列
@@ -327,7 +333,26 @@ public class SeatAllocator {
             if (target == null) {
                 continue;
             }
-            seats.add(buildSeat(sessionId, config, cell, target, resolveRegionCode(cell, config)));
+            seats.add(buildSeat(sessionId, config, cell, target, resolveRegionCode(cell, config), genderCode));
+        }
+
+        // 为本区未填充的 cell 生成空座位，便于前端展示和手动分配
+        fillEmptySeats(seats, sectionCells, sessionId, config, genderCode);
+    }
+
+    private void fillEmptySeats(List<MeditationSeat> seats,
+                                List<SeatCell> sectionCells,
+                                Long sessionId,
+                                MeditationHallConfig config,
+                                String genderCode) {
+        for (SeatCell cell : sectionCells) {
+            boolean occupied = seats.stream()
+                    .anyMatch(s -> Objects.equals(s.getRowIndex(), cell.getRow())
+                            && Objects.equals(s.getColIndex(), cell.getCol()));
+            if (occupied) {
+                continue;
+            }
+            seats.add(buildSeat(sessionId, config, cell, null, resolveRegionCode(cell, config), genderCode));
         }
     }
 
