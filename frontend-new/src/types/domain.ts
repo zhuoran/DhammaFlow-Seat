@@ -214,7 +214,7 @@ export interface CompiledLayout {
   cells: CompiledSeatCell[];
 }
 
-export type SeatStatus = 'available' | 'allocated' | 'reserved';
+export type SeatStatus = 'available' | 'allocated' | 'reserved' | 'pregnant' | 'elderly';
 export type SeatType = 'MONK' | 'STUDENT' | 'WORKER';
 
 export interface MeditationSeat {
@@ -238,6 +238,7 @@ export interface MeditationSeat {
   colPosition?: number;
   isWithCompanion?: boolean;
   companionSeatId?: number;
+  companionName?: string;
   createdAt?: string;
   updatedAt?: string;
   // 前端扩展字段（用于显示）

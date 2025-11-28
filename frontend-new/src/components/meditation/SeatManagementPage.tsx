@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Button, Card, Col, Empty, Input, Row, Space, Statistic, message as antdMessage } from 'antd';
+import { Button, Card, Col, Empty, Input, Modal, Row, Space, Statistic, message as antdMessage } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 import { ReloadOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useAppContext } from '@/state/app-context';
@@ -17,7 +18,8 @@ import { SeatDetailDrawer } from './SeatDetailDrawer';
  * 独立于配置页面，专注于座位的可视化和分配
  */
 export function SeatManagementPage() {
-  const [messageApi, contextHolder] = antdMessage.useMessage();
+  const [messageApi, messageContextHolder] = antdMessage.useMessage();
+  const [modal, modalContextHolder] = Modal.useModal();
   const { currentSession } = useAppContext();
   const queryClient = useQueryClient();
 
@@ -33,6 +35,12 @@ export function SeatManagementPage() {
   const seats = useMemo(() => seatsQuery.data ?? [], [seatsQuery.data]);
   const stats = statsQuery.data;
   const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data]);
+
+  const seatById = useMemo(() => {
+    const map = new Map<number, MeditationSeat>();
+    seats.forEach((seat) => map.set(seat.id, seat));
+    return map;
+  }, [seats]);
 
   const enrichedSeats = useMemo(() => {
     return seats.map((seat) => {
@@ -94,6 +102,33 @@ export function SeatManagementPage() {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleDownloadReport = async () => {
+    if (!currentSession) return;
+    try {
+      const res = await fetch(`/api/reports/export?sessionId=${currentSession.id}`);
+      if (!res.ok) {
+        messageApi.error('导出失败');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '禅堂座位报表.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export report error', e);
+      messageApi.error('导出失败');
+    }
+  };
+
   const handleSeatClick = (seat: MeditationSeat) => {
     setSelectedSeat(seat);
     setDrawerOpen(true);
@@ -108,6 +143,64 @@ export function SeatManagementPage() {
     await queryClient.invalidateQueries({ queryKey: ["meditation-seats", currentSession.id] });
     await queryClient.invalidateQueries({ queryKey: ["seat-statistics", currentSession.id] });
     await queryClient.invalidateQueries({ queryKey: ["students", currentSession.id] });
+  };
+
+  const handleSeatDrop = async (sourceSeatId: number, targetSeatId: number) => {
+    if (sourceSeatId === targetSeatId) return;
+
+    const sourceSeat = seatById.get(sourceSeatId);
+    const targetSeat = seatById.get(targetSeatId);
+
+    if (!sourceSeat || !targetSeat) {
+      messageApi.warning('座位信息未加载完成');
+      return;
+    }
+
+    if (!sourceSeat.studentId && !targetSeat.studentId) {
+      messageApi.info('两个空位无需调整');
+      return;
+    }
+
+    // 目标空位：视为移动
+    if (!targetSeat.studentId) {
+      if (!sourceSeat.studentId) {
+        messageApi.info('该座位没有学员可移动');
+        return;
+      }
+      try {
+        await meditationSeatApi.assignSeat(targetSeatId, sourceSeat.studentId);
+        messageApi.success('已移动到空位');
+        await handleSeatUpdate();
+      } catch (error) {
+        console.error('Assign seat error:', error);
+        messageApi.error('移动失败，请检查座位条件');
+      }
+      return;
+    }
+
+    const swap = async () => {
+      try {
+        await meditationSeatApi.swapSeats(sourceSeatId, targetSeatId);
+        messageApi.success('已调整座位');
+        await handleSeatUpdate();
+      } catch (error) {
+        console.error('Swap seats error:', error);
+        messageApi.error('调整失败，请检查座位条件');
+      }
+    };
+
+    if (targetSeat.studentId) {
+      const sourceName = enrichedSeats.find((s) => s.id === sourceSeatId)?.studentName || sourceSeat.seatNumber;
+      const targetName = enrichedSeats.find((s) => s.id === targetSeatId)?.studentName || targetSeat.seatNumber;
+      modal.confirm({
+        title: '确认交换座位？',
+        content: `${sourceName ?? '座位'} ↔ ${targetName ?? '座位'}`,
+        onOk: swap,
+      });
+      return;
+    }
+
+    await swap();
   };
 
   const handleSearch = (value: string) => {
@@ -135,8 +228,9 @@ export function SeatManagementPage() {
   };
 
   return (
-    <div>
-      {contextHolder}
+    <div className="print-container">
+      {messageContextHolder}
+      {modalContextHolder}
       <div className="no-print">
         <PageHeader
           title="座位管理"
@@ -164,6 +258,10 @@ export function SeatManagementPage() {
               >
                 清空座位
               </Button>
+              <Button icon={<DownloadOutlined />} onClick={handleDownloadReport}>
+                下载报表
+              </Button>
+              <Button onClick={handlePrint}>打印</Button>
             </Space>
 
             <Space size="large" align="center">
@@ -219,6 +317,8 @@ export function SeatManagementPage() {
           selectedSeatId={selectedSeat?.id}
           highlightSeatId={resolvedHighlightSeatId}
           onSeatClick={handleSeatClick}
+          onSeatDrop={handleSeatDrop}
+          onDropBlocked={(reason) => messageApi.warning(reason)}
         />
       </Space>
 

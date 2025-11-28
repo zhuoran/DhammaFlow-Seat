@@ -84,7 +84,7 @@ function SeatDetailDrawerContent({ seat, open, students, onClose, onUpdate }: Se
     setLoading(true);
     try {
       // 分配 null 表示取消分配
-      await meditationSeatApi.assignSeat(seat.id, 0);
+      await meditationSeatApi.assignSeat(seat.id, null);
       messageApi.success('已取消分配');
       onUpdate();
       onClose();

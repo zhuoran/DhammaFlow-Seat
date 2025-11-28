@@ -38,17 +38,54 @@ body {
 }
 
 @media print {
+  /* --- 打印专用样式开始 --- */
+  @page {
+    size: A4 landscape; /* 强制横向打印 */
+    margin: 10mm; /* 留出适当边距 */
+  }
+
   body {
     background: #fff;
-    color: #000;
+    -webkit-print-color-adjust: exact !important; /* 打印背景色/颜色 */
+    print-color-adjust: exact !important;
   }
-  .no-print {
+
+  /* 隐藏不必要的元素 */
+  .navbar, .sidebar, .print-button-hidden, .page-header, .no-print {
     display: none !important;
   }
-  .seat-card {
-    box-shadow: none !important;
-    color: #000 !important;
-    border-color: #666 !important;
-    background-color: #f8f8f8 !important;
+
+  /* 布局调整：上下堆叠 */
+  .main-container {
+    display: block !important;
+    width: 100% !important;
   }
+
+  /* 分区分页 */
+  .section-b {
+    width: 100% !important;
+    page-break-after: always;
+    margin-bottom: 0 !important;
+  }
+  .section-a {
+    width: 100% !important;
+    margin-top: 20mm;
+  }
+
+  /* 卡片样式（打印清晰） */
+  .seat-card {
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .room-number, .stats-row {
+    color: #000 !important;
+  }
+  .companion-badge {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #fff !important;
+  }
+  /* --- 打印专用样式结束 --- */
 }

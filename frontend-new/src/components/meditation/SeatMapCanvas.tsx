@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, Empty, Space, Spin, Tag } from 'antd';
 import type { MeditationSeat } from '@/types/domain';
 import { SeatItem } from './SeatItem';
@@ -12,6 +12,8 @@ interface SeatMapCanvasProps {
   selectedSeatId?: number;
   highlightSeatId?: number;
   onSeatClick?: (seat: MeditationSeat) => void;
+  onSeatDrop?: (sourceSeatId: number, targetSeatId: number) => void | Promise<void>;
+  onDropBlocked?: (reason: string) => void;
 }
 
 interface RegionSeats {
@@ -30,7 +32,7 @@ interface RegionSeats {
  * 支持双区域合并显示（A区左、B区右，中间分割线）
  * 包含老师法坐区域
  */
-export function SeatMapCanvas({ seats, loading = false, selectedSeatId, highlightSeatId, onSeatClick }: SeatMapCanvasProps) {
+export function SeatMapCanvas({ seats, loading = false, selectedSeatId, highlightSeatId, onSeatClick, onSeatDrop, onDropBlocked }: SeatMapCanvasProps) {
   // 按区域分组座位
   const regionGroups = useMemo<RegionSeats[]>(() => {
     const groups = new Map<string, MeditationSeat[]>();
@@ -78,6 +80,61 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, highligh
   const isDualGender = useMemo(() => {
     return regionGroups.length === 2;
   }, [regionGroups]);
+
+  const seatById = useMemo(() => {
+    const map = new Map<number, MeditationSeat>();
+    seats.forEach((seat) => {
+      map.set(seat.id, seat);
+    });
+    return map;
+  }, [seats]);
+
+  const [draggingSeatId, setDraggingSeatId] = useState<number>();
+
+  const canDrop = (source: MeditationSeat, target: MeditationSeat) => {
+    if (source.id === target.id) return false;
+    if (target.status === 'reserved') return false;
+    // POC 限制：同一区域、同性别才允许拖放
+    if (source.regionCode && target.regionCode && source.regionCode !== target.regionCode) return false;
+    if (source.gender && target.gender && source.gender !== target.gender) return false;
+    return true;
+  };
+
+  const handleDragStart = (seat: MeditationSeat) => {
+    setDraggingSeatId(seat.id);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingSeatId(undefined);
+  };
+
+  const handleDropOnSeat = (targetSeat: MeditationSeat) => {
+    if (!draggingSeatId || !onSeatDrop) {
+      return;
+    }
+
+    const sourceSeat = seatById.get(draggingSeatId);
+    if (!sourceSeat) return;
+    if (!canDrop(sourceSeat, targetSeat)) {
+      onDropBlocked?.('仅可在同区域/同性别的座位间调整');
+      setDraggingSeatId(undefined);
+      return;
+    }
+
+    onSeatDrop(sourceSeat.id, targetSeat.id);
+    setDraggingSeatId(undefined);
+  };
+
+  const findCompanionName = (seat: MeditationSeat) => {
+    if (seat.companionName) {
+      return seat.companionName;
+    }
+    if (seat.companionSeatId) {
+      const companionSeat = seatById.get(seat.companionSeatId);
+      return companionSeat?.studentName;
+    }
+    return undefined;
+  };
 
   // 创建座位网格
   const createSeatGrid = (region: RegionSeats) => {
@@ -171,7 +228,7 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, highligh
                   第{displayRowNumber}排
                 </div>
                 {isPlaceholder ? (
-                  <div style={{ width: '86px', height: '98px' }} />
+                  <div style={{ width: '86px', height: '98px' }} className="print-hide-placeholder" />
                 ) : (
                   // 根据区域位置决定列顺序
                   (isLeftRegion
@@ -184,11 +241,17 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, highligh
                             selected={seat.id === selectedSeatId}
                             onClick={onSeatClick}
                             highlighted={seat.id === highlightSeatId}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            onDropOn={handleDropOnSeat}
+                            draggable={Boolean(onSeatDrop)}
+                            companionName={findCompanionName(seat)}
                           />
                         ) : (
                           <div
                             key={`empty-${rowData.key}-${colIdx}`}
                             style={{ width: '86px', height: '98px' }}
+                            className="print-hide-placeholder"
                           />
                         );
                       })
@@ -199,12 +262,18 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, highligh
                             seat={seat}
                             selected={seat.id === selectedSeatId}
                             onClick={onSeatClick}
-                          highlighted={seat.id === highlightSeatId}
+                            highlighted={seat.id === highlightSeatId}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            onDropOn={handleDropOnSeat}
+                            draggable={Boolean(onSeatDrop)}
+                            companionName={findCompanionName(seat)}
                         />
-                      ) : (
+                          ) : (
                           <div
                             key={`empty-${rowData.key}-${colIdx}`}
                             style={{ width: '86px', height: '98px' }}
+                            className="print-hide-placeholder"
                           />
                         );
                       }))
@@ -252,6 +321,7 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, highligh
 
     return (
       <Card
+        className="print-card"
         title={
           <Space>
             <span>禅堂座位图</span>
@@ -262,7 +332,7 @@ export function SeatMapCanvas({ seats, loading = false, selectedSeatId, highligh
         }
         styles={{ body: { padding: '24px', backgroundColor: '#fafafa' } }}
       >
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-8 print-scale">
           {/* 座位区域：左区 | 分割线 | 右区 */}
           <div className="flex gap-6 items-end justify-center">
             {/* 左侧区域 */}

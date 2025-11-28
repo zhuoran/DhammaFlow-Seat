@@ -123,6 +123,9 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
                         config.getRegionCode(), regionSeats.size());
             }
 
+            // 处理同伴标记（需要在座位写入后，利用生成的ID更新）
+            processCompanionSeats(generatedSeats, students);
+
             List<String> validationWarnings = seatValidationService.validate(generatedSeats);
             warnings.addAll(validationWarnings);
 
@@ -189,14 +192,34 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
         return roomMap;
     }
 
+    private String resolveBedCode(Long studentId, Long sessionId) {
+        Allocation allocation = allocationMapper.selectByStudentId(studentId);
+        if (allocation == null) {
+            return null;
+        }
+        if (allocation.getSessionId() != null && sessionId != null &&
+                !allocation.getSessionId().equals(sessionId)) {
+            return null;
+        }
+        if (allocation.getRoomId() == null || allocation.getBedNumber() == null) {
+            return null;
+        }
+        Room room = roomMapper.selectById(allocation.getRoomId());
+        String roomNumber = room != null ? room.getRoomNumber() : String.valueOf(allocation.getRoomId());
+        return roomNumber + "-" + allocation.getBedNumber();
+    }
+
     @Override
     public List<MeditationSeat> getSeats(Long sessionId) {
-        return meditationSeatMapper.selectBySessionId(sessionId);
+        List<MeditationSeat> seats = meditationSeatMapper.selectBySessionId(sessionId);
+        enrichCompanionNames(sessionId, seats);
+        return seats;
     }
 
     @Override
     public List<MeditationSeat> getSeatsByRegion(Long sessionId, String regionCode) {
         List<MeditationSeat> allSeats = meditationSeatMapper.selectBySessionId(sessionId);
+        enrichCompanionNames(sessionId, allSeats);
         return allSeats.stream()
                 .filter(s -> regionCode.equals(s.getRegionCode()))
                 .collect(Collectors.toList());
@@ -212,6 +235,20 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
             throw new RuntimeException("座位不存在");
         }
 
+        if (seat1.getSessionId() != null && seat2.getSessionId() != null &&
+                !seat1.getSessionId().equals(seat2.getSessionId())) {
+            throw new RuntimeException("不同会期的座位无法交换");
+        }
+
+        if ("reserved".equalsIgnoreCase(seat1.getStatus()) || "reserved".equalsIgnoreCase(seat2.getStatus())) {
+            throw new RuntimeException("保留座位不可交换");
+        }
+
+        if (seat1.getGender() != null && seat2.getGender() != null &&
+                !seat1.getGender().equalsIgnoreCase(seat2.getGender())) {
+            throw new RuntimeException("性别不匹配，无法交换");
+        }
+
         Long studentId1 = seat1.getStudentId();
         Long studentId2 = seat2.getStudentId();
 
@@ -219,21 +256,13 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
             throw new RuntimeException("两个座位都为空，无需交换");
         }
 
-        // 冲突检测：检查交换后是否会导致同伴相邻
-        if (studentId1 != null && studentId2 != null) {
-            Student student1 = studentMapper.selectById(studentId1);
-            Student student2 = studentMapper.selectById(studentId2);
-
-            if (student1 != null && student2 != null &&
-                    student1.getFellowGroupId() != null &&
-                    student1.getFellowGroupId().equals(student2.getFellowGroupId())) {
-                throw new RuntimeException("不能交换同伴组成员的座位");
-            }
-        }
-
         // 交换学员
         seat1.setStudentId(studentId2);
         seat2.setStudentId(studentId1);
+        seat1.setBedCode(resolveBedCode(studentId2, seat1.getSessionId()));
+        seat2.setBedCode(resolveBedCode(studentId1, seat2.getSessionId()));
+        seat1.setStatus(studentId2 == null ? "available" : "allocated");
+        seat2.setStatus(studentId1 == null ? "available" : "allocated");
         seat1.setUpdatedAt(LocalDateTime.now());
         seat2.setUpdatedAt(LocalDateTime.now());
 
@@ -243,6 +272,7 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
         // 更新同伴座位关系
         updateCompanionRelations(seat1);
         updateCompanionRelations(seat2);
+        recalcCompanionRelations(seat1.getSessionId());
 
         log.info("座位交换成功: {} <-> {}", seatId1, seatId2);
     }
@@ -258,37 +288,7 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
             return;
         }
 
-        Student student = studentMapper.selectById(seat.getStudentId());
-        if (student == null || student.getFellowGroupId() == null) {
-            seat.setIsWithCompanion(false);
-            seat.setCompanionSeatId(null);
-            meditationSeatMapper.update(seat);
-            return;
-        }
-
-        // 查找同一区域的所有座位
-        List<MeditationSeat> regionSeats = meditationSeatMapper.selectBySessionId(seat.getSessionId())
-                .stream()
-                .filter(s -> seat.getRegionCode().equals(s.getRegionCode()))
-                .collect(Collectors.toList());
-
-        // 查找同伴座位
-        for (MeditationSeat other : regionSeats) {
-            if (other.getId().equals(seat.getId()) || other.getStudentId() == null) {
-                continue;
-            }
-
-            Student otherStudent = studentMapper.selectById(other.getStudentId());
-            if (otherStudent != null &&
-                    student.getFellowGroupId().equals(otherStudent.getFellowGroupId()) &&
-                    isAdjacentSeats(seat, other)) {
-                seat.setIsWithCompanion(true);
-                seat.setCompanionSeatId(other.getId());
-                meditationSeatMapper.update(seat);
-                return;
-            }
-        }
-
+        // 新的同伴逻辑依赖 fellow_list 的全量重算，这里不做局部处理
         seat.setIsWithCompanion(false);
         seat.setCompanionSeatId(null);
         meditationSeatMapper.update(seat);
@@ -304,17 +304,68 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
                 throw new RuntimeException("座位不存在");
             }
 
+            if ("reserved".equalsIgnoreCase(seat.getStatus())) {
+                throw new RuntimeException("保留座位不可分配");
+            }
+
+            // studentId <=0 视为取消分配
+            if (studentId == null || studentId <= 0) {
+                seat.setStudentId(null);
+                seat.setBedCode(null);
+                seat.setStatus("available");
+                seat.setIsWithCompanion(false);
+                seat.setCompanionSeatId(null);
+                seat.setUpdatedAt(LocalDateTime.now());
+                meditationSeatMapper.update(seat);
+                updateCompanionRelations(seat);
+                log.info("已取消座位分配，座位 {}", seatId);
+                return;
+            }
+
             Student student = studentMapper.selectById(studentId);
 
             if (student == null) {
                 throw new RuntimeException("学员不存在");
             }
 
+            if (seat.getSessionId() != null && student.getSessionId() != null &&
+                    !seat.getSessionId().equals(student.getSessionId())) {
+                throw new RuntimeException("学员与座位不属于同一会期");
+            }
+
+            if (seat.getGender() != null && student.getGender() != null &&
+                    !seat.getGender().equalsIgnoreCase(student.getGender())) {
+                throw new RuntimeException("性别不匹配，无法分配");
+            }
+
+            // 若学员已占用其他座位，先释放
+            MeditationSeat existingSeat = meditationSeatMapper.selectByStudentId(studentId);
+            if (existingSeat != null && !existingSeat.getId().equals(seatId)) {
+                if (existingSeat.getSessionId() != null && seat.getSessionId() != null &&
+                        !existingSeat.getSessionId().equals(seat.getSessionId())) {
+                    throw new RuntimeException("学员已在其他会期占用座位");
+                }
+                existingSeat.setStudentId(null);
+                existingSeat.setBedCode(null);
+                existingSeat.setStatus("available");
+                existingSeat.setIsWithCompanion(false);
+                existingSeat.setCompanionSeatId(null);
+                existingSeat.setUpdatedAt(LocalDateTime.now());
+                meditationSeatMapper.update(existingSeat);
+                updateCompanionRelations(existingSeat);
+            }
+
+            String bedCode = resolveBedCode(studentId, seat.getSessionId());
+
             seat.setStudentId(studentId);
+            seat.setBedCode(bedCode);
             seat.setUpdatedAt(LocalDateTime.now());
             seat.setStatus("allocated");
 
             meditationSeatMapper.update(seat);
+            updateCompanionRelations(seat);
+
+            recalcCompanionRelations(seat.getSessionId());
 
             log.info("座位分配成功: 学员 {} 分配到座位 {}", studentId, seatId);
 
@@ -371,79 +422,250 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
         log.info("开始处理同伴座位标记...");
 
         try {
-            // 1. 构建座位映射：学员ID -> 座位对象
-            Map<Long, MeditationSeat> studentSeatMap = new HashMap<>();
+            CompanionContext ctx = buildCompanionContext(students, seats);
+
+            // 清空旧标记
             for (MeditationSeat seat : seats) {
-                if (seat.getStudentId() != null) {
-                    studentSeatMap.put(seat.getStudentId(), seat);
+                seat.setIsWithCompanion(false);
+                seat.setCompanionSeatId(null);
+            }
+
+            // 标记同伴关系：有同伴就打标，相邻则指向对方座位
+            for (MeditationSeat seat : seats) {
+                Long studentId = seat.getStudentId();
+                if (studentId == null) {
+                    continue;
                 }
-            }
+                
+                // 获取匹配到的同伴ID
+                Set<Long> companions = ctx.fellowMap().getOrDefault(studentId, Collections.emptySet());
+                // 获取未匹配的同伴姓名
+                Set<String> unmatchedNames = ctx.unmatchedCompanionNames().getOrDefault(studentId, Collections.emptySet());
+                
+                if (companions.isEmpty() && unmatchedNames.isEmpty()) {
+                    continue;
+                }
+                
+                seat.setIsWithCompanion(true);
 
-            // 2. 构建学员映射：学员ID -> 学员对象
-            Map<Long, Student> studentMap = new HashMap<>();
-            for (Student student : students) {
-                studentMap.put(student.getId(), student);
-            }
-
-            // 3. 按同伴组ID分组学员
-            Map<Integer, List<Student>> companionGroups = students.stream()
-                    .filter(s -> s.getFellowGroupId() != null)
-                    .collect(Collectors.groupingBy(Student::getFellowGroupId));
-
-            log.info("发现 {} 个同伴组", companionGroups.size());
-
-            // 4. 处理每个同伴组
-            int processedCompanions = 0;
-            for (Map.Entry<Integer, List<Student>> entry : companionGroups.entrySet()) {
-                List<Student> groupMembers = entry.getValue();
-
-                // 同伴组中的每两个成员之间检查相邻关系
-                for (int i = 0; i < groupMembers.size(); i++) {
-                    for (int j = i + 1; j < groupMembers.size(); j++) {
-                        Student student1 = groupMembers.get(i);
-                        Student student2 = groupMembers.get(j);
-
-                        MeditationSeat seat1 = studentSeatMap.get(student1.getId());
-                        MeditationSeat seat2 = studentSeatMap.get(student2.getId());
-
-                        // 检查两个座位是否都存在且相邻
-                        if (seat1 != null && seat2 != null) {
-                            if (isAdjacentSeats(seat1, seat2)) {
-                                // 标记为同伴座位
-                                seat1.setIsWithCompanion(true);
-                                seat1.setCompanionSeatId(seat2.getId());
-                                seat1.setUpdatedAt(LocalDateTime.now());
-
-                                seat2.setIsWithCompanion(true);
-                                seat2.setCompanionSeatId(seat1.getId());
-                                seat2.setUpdatedAt(LocalDateTime.now());
-
-                                // 更新数据库
-                                meditationSeatMapper.update(seat1);
-                                meditationSeatMapper.update(seat2);
-
-                                processedCompanions++;
-                                log.debug("同伴座位标记: 学员 {} 和 {} 相邻，座位 ({},{}) <-> ({},{})",
-                                        student1.getName(), student2.getName(),
-                                        seat1.getRowIndex(), seat1.getColIndex(),
-                                        seat2.getRowIndex(), seat2.getColIndex());
-                            } else {
-                                // 同伴座位不相邻，记录警告
-                                log.warn("同伴座位未相邻: 学员 {} 和 {} 不相邻，座位 ({},{}) 和 ({},{})",
-                                        student1.getName(), student2.getName(),
-                                        seat1.getRowIndex(), seat1.getColIndex(),
-                                        seat2.getRowIndex(), seat2.getColIndex());
-                            }
-                        }
+                // 同伴姓名优先取匹配到的学生姓名，否则取未匹配的原始姓名
+                for (Long companionId : companions) {
+                    Student companionStudent = ctx.studentMap().get(companionId);
+                    if (companionStudent != null && StringUtils.hasText(companionStudent.getName())) {
+                        seat.setCompanionName(companionStudent.getName());
+                        break;
                     }
                 }
+                if (!unmatchedNames.isEmpty() && !StringUtils.hasText(seat.getCompanionName())) {
+                    seat.setCompanionName(unmatchedNames.iterator().next());
+                }
+
+                // 尝试优先相邻的同伴座位，否则取任意有座位的同伴
+                MeditationSeat anyCompanionSeat = null;
+                for (Long companionId : companions) {
+                    MeditationSeat companionSeat = ctx.studentSeatMap().get(companionId);
+                    if (companionSeat == null) {
+                        continue;
+                    }
+                    if (isAdjacentSeats(seat, companionSeat)) {
+                        seat.setCompanionSeatId(companionSeat.getId());
+                        break;
+                    }
+                    if (anyCompanionSeat == null) {
+                        anyCompanionSeat = companionSeat;
+                    }
+                }
+                if (seat.getCompanionSeatId() == null && anyCompanionSeat != null) {
+                    seat.setCompanionSeatId(anyCompanionSeat.getId());
+                }
+                seat.setUpdatedAt(LocalDateTime.now());
+                meditationSeatMapper.update(seat);
             }
 
-            log.info("同伴座位处理完成，已标记 {} 对相邻的同伴座位", processedCompanions);
+            log.info("同伴标记完成，涉及 {} 名学员（匹配: {}, 未匹配: {}）", 
+                    ctx.fellowMap().size(), 
+                    ctx.fellowMap().size(),
+                    ctx.unmatchedCompanionNames().size());
 
         } catch (Exception e) {
             log.error("处理同伴座位标记失败", e);
             // 不抛出异常，允许座位生成继续
+        }
+    }
+
+    private CompanionContext buildCompanionContext(List<Student> students, List<MeditationSeat> seats) {
+        Map<String, Long> nameIndex = new HashMap<>();
+        Map<Long, Student> studentMap = new HashMap<>();
+        for (Student s : students) {
+            if (s.getName() != null) {
+                nameIndex.put(s.getName().trim(), s.getId());
+            }
+            studentMap.put(s.getId(), s);
+        }
+
+        Map<Long, Set<Long>> fellowMap = new HashMap<>();
+        Map<Long, Set<String>> unmatchedCompanionNames = new HashMap<>();
+        int matchedTokens = 0;
+        int unmatchedTokens = 0;
+        List<String> unmatchedSamples = new ArrayList<>();
+        // 预备一个按长度排序的姓名列表，用于模糊拆分连续姓名
+        List<String> sortedNames = new ArrayList<>(nameIndex.keySet());
+        sortedNames.sort((a, b) -> Integer.compare(b.length(), a.length()));
+
+        for (Student s : students) {
+            if (!StringUtils.hasText(s.getFellowList())) {
+                continue;
+            }
+            // 去掉关系段，仅保留 '/' 之前的部分
+            String base = s.getFellowList();
+            int slashIdx = base.indexOf('/');
+            if (slashIdx >= 0) {
+                base = base.substring(0, slashIdx);
+            }
+
+            // 按常见分隔符拆分
+            String[] tokens = base.split("[,;；、，|/\\s]+");
+            Set<String> candidateNames = new LinkedHashSet<>();
+            for (String raw : tokens) {
+                String name = raw
+                        .replace("（", "(")
+                        .replace("）", ")")
+                        .replace("：", ":")
+                        .trim();
+                if (name.isEmpty()) {
+                    continue;
+                }
+                candidateNames.add(name);
+            }
+
+            // 对每个 token 尝试直接匹配，否则在其中查找已知姓名子串
+            Set<Long> companionsForStudent = fellowMap.computeIfAbsent(s.getId(), k -> new LinkedHashSet<>());
+            Set<String> unmatchedForStudent = unmatchedCompanionNames.computeIfAbsent(s.getId(), k -> new LinkedHashSet<>());
+            
+            for (String token : candidateNames) {
+                Long cid = nameIndex.get(token);
+                if (cid != null && !cid.equals(s.getId())) {
+                    companionsForStudent.add(cid);
+                    matchedTokens++;
+                    continue;
+                }
+                boolean matchedSub = false;
+                for (String known : sortedNames) {
+                    if (token.contains(known)) {
+                        Long subCid = nameIndex.get(known);
+                        if (subCid != null && !subCid.equals(s.getId())) {
+                            companionsForStudent.add(subCid);
+                            matchedTokens++;
+                            matchedSub = true;
+                        }
+                    }
+                }
+                if (!matchedSub) {
+                    // 保存未匹配的同伴姓名
+                    unmatchedForStudent.add(token);
+                    unmatchedTokens++;
+                    if (unmatchedSamples.size() < 5) {
+                        unmatchedSamples.add(token);
+                    }
+                }
+            }
+
+            // 双向补充（仅针对匹配到的同伴）
+            for (Long cid : companionsForStudent) {
+                fellowMap.computeIfAbsent(cid, k -> new LinkedHashSet<>()).add(s.getId());
+            }
+        }
+
+        Map<Long, MeditationSeat> studentSeatMap = new HashMap<>();
+        for (MeditationSeat seat : seats) {
+            if (seat.getStudentId() != null) {
+                studentSeatMap.put(seat.getStudentId(), seat);
+            }
+        }
+        // 准备部分映射示例输出，便于排查
+        List<String> mappingSamples = new ArrayList<>();
+        for (Map.Entry<Long, Set<Long>> entry : fellowMap.entrySet()) {
+            if (mappingSamples.size() >= 5) {
+                break;
+            }
+            Student s = studentMap.get(entry.getKey());
+            String selfName = s != null ? s.getName() : String.valueOf(entry.getKey());
+            List<String> companionNames = entry.getValue().stream()
+                    .map(id -> {
+                        Student cs = studentMap.get(id);
+                        return cs != null ? cs.getName() : String.valueOf(id);
+                    })
+                    .toList();
+            mappingSamples.add(selfName + " -> " + companionNames);
+        }
+        
+        // 准备未匹配同伴的示例输出
+        List<String> unmatchedMappingSamples = new ArrayList<>();
+        for (Map.Entry<Long, Set<String>> entry : unmatchedCompanionNames.entrySet()) {
+            if (unmatchedMappingSamples.size() >= 5) {
+                break;
+            }
+            Student s = studentMap.get(entry.getKey());
+            String selfName = s != null ? s.getName() : String.valueOf(entry.getKey());
+            unmatchedMappingSamples.add(selfName + " -> " + entry.getValue());
+        }
+
+        log.info("同伴解析: matched={}, pairs={}, students={}, unmatched={}, unmatchedSamples={}, mapSamples={}, unmatchedMapSamples={}",
+                matchedTokens, fellowMap.size(), students.size(), unmatchedTokens, unmatchedSamples, mappingSamples, unmatchedMappingSamples);
+        return new CompanionContext(fellowMap, studentSeatMap, studentMap, unmatchedCompanionNames);
+    }
+
+private record CompanionContext(Map<Long, Set<Long>> fellowMap, 
+                                    Map<Long, MeditationSeat> studentSeatMap,
+                                    Map<Long, Student> studentMap,
+                                    Map<Long, Set<String>> unmatchedCompanionNames) {}
+
+    /**
+     * 查询座位列表后，为返回结果补充同伴姓名（避免非持久化字段丢失）。
+     */
+    private void enrichCompanionNames(Long sessionId, List<MeditationSeat> seats) {
+        if (seats == null || seats.isEmpty() || sessionId == null) {
+            return;
+        }
+        List<Student> students = studentMapper.selectBySessionId(sessionId);
+        CompanionContext ctx = buildCompanionContext(students, seats);
+        Map<Long, MeditationSeat> seatById = seats.stream()
+                .collect(Collectors.toMap(MeditationSeat::getId, s -> s, (a, b) -> a));
+
+        for (MeditationSeat seat : seats) {
+            if (!Boolean.TRUE.equals(seat.getIsWithCompanion())) {
+                continue;
+            }
+            // 1) 如果有同伴座位ID，优先用座位对应的学生姓名
+            if (seat.getCompanionSeatId() != null) {
+                MeditationSeat cs = seatById.get(seat.getCompanionSeatId());
+                if (cs != null && cs.getStudentId() != null) {
+                    Student companionStudent = ctx.studentMap().get(cs.getStudentId());
+                    if (companionStudent != null && StringUtils.hasText(companionStudent.getName())) {
+                        seat.setCompanionName(companionStudent.getName());
+                        continue;
+                    }
+                }
+            }
+            // 2) 如果有匹配到的同伴学生，但没有座位ID，填充姓名
+            if (seat.getStudentId() != null) {
+                Set<Long> companions = ctx.fellowMap().getOrDefault(seat.getStudentId(), Collections.emptySet());
+                for (Long cid : companions) {
+                    Student cst = ctx.studentMap().get(cid);
+                    if (cst != null && StringUtils.hasText(cst.getName())) {
+                        seat.setCompanionName(cst.getName());
+                        break;
+                    }
+                }
+                if (StringUtils.hasText(seat.getCompanionName())) {
+                    continue;
+                }
+                // 3) 使用未匹配的原始姓名填充
+                Set<String> unmatched = ctx.unmatchedCompanionNames().getOrDefault(seat.getStudentId(), Collections.emptySet());
+                if (!unmatched.isEmpty()) {
+                    seat.setCompanionName(unmatched.iterator().next());
+                }
+            }
         }
     }
 
@@ -525,5 +747,27 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
         }
 
         log.info("特殊学员标记完成: 孕妇 {} 人, 老人 {} 人", pregnantCount, elderlyCount);
+    }
+
+    /**
+     * 全量重算会期内的同伴标记，避免局部操作遗漏。
+     */
+    private void recalcCompanionRelations(Long sessionId) {
+        if (sessionId == null) {
+            return;
+        }
+        List<MeditationSeat> seats = meditationSeatMapper.selectBySessionId(sessionId);
+        if (seats.isEmpty()) {
+            return;
+        }
+        List<Long> studentIds = seats.stream()
+                .map(MeditationSeat::getStudentId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        List<Student> students = studentIds.isEmpty()
+                ? Collections.emptyList()
+                : studentMapper.selectByIds(studentIds);
+        processCompanionSeats(seats, students);
     }
 }

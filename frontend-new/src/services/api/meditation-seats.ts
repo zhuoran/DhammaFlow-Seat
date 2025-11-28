@@ -42,11 +42,12 @@ export async function generateSeats(sessionId: number): Promise<MeditationSeat[]
 }
 
 /**
- * 为学员分配座位
+ * 为学员分配座位（studentId 为空或 0 表示取消分配）
  */
-export async function assignSeat(seatId: number, studentId: number): Promise<void> {
+export async function assignSeat(seatId: number, studentId: number | null): Promise<void> {
+  const payloadStudentId = studentId ?? 0
   await apiClient.put(`/meditation-seats/${seatId}/assign`, null, {
-    params: { studentId },
+    params: { studentId: payloadStudentId },
   })
 }
 

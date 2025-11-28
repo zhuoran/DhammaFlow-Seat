@@ -31,6 +31,7 @@ public class MeditationSeat {
     private Integer colPosition;         // 在性别分组内的列位置 - 新增
     private Boolean isWithCompanion;     // 是否有同伴 - 新增
     private Long companionSeatId;        // 同伴座位ID - 新增
+    private String companionName;        // 同伴姓名（前端提示用，非持久化）
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
