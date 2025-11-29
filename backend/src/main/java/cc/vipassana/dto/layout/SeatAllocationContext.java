@@ -12,8 +12,6 @@ import java.util.List;
 public class SeatAllocationContext {
     private CompiledLayout layout;
     @Builder.Default
-    private List<Student> monks = new ArrayList<>();
-    @Builder.Default
     private List<Student> oldStudents = new ArrayList<>();
     @Builder.Default
     private List<Student> newStudents = new ArrayList<>();

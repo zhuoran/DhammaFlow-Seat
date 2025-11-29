@@ -95,9 +95,8 @@ public class MeditationSeatServiceImpl implements MeditationSeatService {
                     .map(Allocation::getStudentId)
                     .collect(Collectors.toList());
 
-            List<Student> students = studentIds.isEmpty() ?
-                    new ArrayList<>() :
-                    studentMapper.selectByIds(studentIds);
+            // 分配算法应覆盖所有学员，即便未做房间分配；房间分配仅用于 bedCode 绑定
+            List<Student> students = studentMapper.selectBySessionId(sessionId);
 
             log.info("期次 {} 已分配学员 {} 名", sessionId, students.size());
 

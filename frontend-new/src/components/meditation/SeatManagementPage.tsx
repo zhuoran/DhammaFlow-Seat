@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Button, Card, Col, Empty, Input, Modal, Row, Space, Statistic, message as antdMessage } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { ReloadOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useAppContext } from '@/state/app-context';
 import { meditationSeatApi } from '@/services/api';
@@ -31,6 +32,7 @@ export function SeatManagementPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [highlightSeatId, setHighlightSeatId] = useState<number>();
   const [searchValue, setSearchValue] = useState('');
+  const router = useRouter();
 
   const seats = useMemo(() => seatsQuery.data ?? [], [seatsQuery.data]);
   const stats = statsQuery.data;
@@ -103,7 +105,7 @@ export function SeatManagementPage() {
   };
 
   const handlePrint = () => {
-    window.print();
+    router.push('/seats-print');
   };
 
   const handleDownloadReport = async () => {

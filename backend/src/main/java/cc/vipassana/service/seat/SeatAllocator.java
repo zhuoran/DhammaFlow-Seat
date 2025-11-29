@@ -25,21 +25,16 @@ public class SeatAllocator {
 
     public SeatAllocationContext buildContext(MeditationHallConfig config, List<Student> students) {
         CompiledLayout layout = layoutCompiler.compile(config);
-        List<Student> monks = new ArrayList<>();
         List<Student> maleOldStudents = new ArrayList<>();
         List<Student> femaleOldStudents = new ArrayList<>();
         List<Student> maleNewStudents = new ArrayList<>();
         List<Student> femaleNewStudents = new ArrayList<>();
 
         for (Student student : students) {
-            String inferredType = inferStudentType(student);
-            if ("monk".equals(inferredType)) {
-                monks.add(student);
-                continue;
-            }
-
+            boolean isMonk = student.isMonk();
+            boolean isOld = isMonk || student.isOldStudent();
             boolean isMale = "M".equalsIgnoreCase(student.getGender());
-            if ("old_student".equals(inferredType)) {
+            if (isOld) {
                 if (isMale) {
                     maleOldStudents.add(student);
                 } else {
@@ -69,7 +64,6 @@ public class SeatAllocator {
 
         return SeatAllocationContext.builder()
                 .layout(layout)
-                .monks(monks)
                 .oldStudents(oldStudents)
                 .newStudents(newStudents)
                 .maleOldStudents(maleOldStudents)
@@ -83,44 +77,61 @@ public class SeatAllocator {
                                      SeatAllocationContext context,
                                      Long sessionId,
                                      List<String> warnings) {
-        // 基于布局分两段：先填旧生（OLD_STUDENT/MIXED），再填新生（NEW_STUDENT/MIXED，右到左，竖列）
         List<MeditationSeat> seats = new ArrayList<>();
         List<Student> unassigned = new ArrayList<>();
 
-        List<SeatCell> cells = context.getLayout().getCells();
-        // 按区分性别：A/男区填男，B/女区填女；每区“旧生前排，新生右->左竖列”
-        List<SeatCell> femaleCells = new ArrayList<>();
-        List<SeatCell> maleCells = new ArrayList<>();
-
-        for (SeatCell cell : cells) {
+        // 先按 section 分组，再在每个 section 内按性别拆组
+        Map<String, List<SeatCell>> sectionGroups = new HashMap<>();
+        for (SeatCell cell : context.getLayout().getCells()) {
             if (cell.isReserved()) {
                 continue;
             }
-            String seatGender = resolveSeatGender(cell, config);
-            if ("F".equalsIgnoreCase(seatGender)) {
-                femaleCells.add(cell);
-            } else if ("M".equalsIgnoreCase(seatGender)) {
-                maleCells.add(cell);
-            } else {
-                // 未识别性别的混合区，默认放在女区，保证不丢弃
-                femaleCells.add(cell);
-            }
+            String key = StringUtils.hasText(cell.getSectionName()) ? cell.getSectionName() : "__DEFAULT__";
+            sectionGroups.computeIfAbsent(key, k -> new ArrayList<>()).add(cell);
         }
 
-        Iterator<Student> monkIterator = context.getMonks().iterator();
-        Iterator<Student> maleOldIterator = context.getMaleOldStudents().iterator();
-        Iterator<Student> femaleOldIterator = context.getFemaleOldStudents().iterator();
-        Iterator<Student> maleNewIterator = context.getMaleNewStudents().iterator();
-        Iterator<Student> femaleNewIterator = context.getFemaleNewStudents().iterator();
+        Deque<Student> maleOldQueue = new ArrayDeque<>(context.getMaleOldStudents());
+        Deque<Student> femaleOldQueue = new ArrayDeque<>(context.getFemaleOldStudents());
+        Deque<Student> maleNewQueue = new ArrayDeque<>(context.getMaleNewStudents());
+        Deque<Student> femaleNewQueue = new ArrayDeque<>(context.getFemaleNewStudents());
 
-        allocateBySection(seats, maleCells, "M", maleOldIterator, femaleOldIterator, maleNewIterator, femaleNewIterator, sessionId, config);
-        allocateBySection(seats, femaleCells, "F", maleOldIterator, femaleOldIterator, maleNewIterator, femaleNewIterator, sessionId, config);
+        for (Map.Entry<String, List<SeatCell>> entry : sectionGroups.entrySet()) {
+            String sectionName = entry.getKey();
+            List<SeatCell> cells = entry.getValue();
 
-        addRemaining(femaleOldIterator, unassigned);
-        addRemaining(maleOldIterator, unassigned);
-        addRemaining(femaleNewIterator, unassigned);
-        addRemaining(maleNewIterator, unassigned);
-        addRemaining(monkIterator, unassigned);
+            List<SeatCell> maleCells = new ArrayList<>();
+            List<SeatCell> femaleCells = new ArrayList<>();
+
+            for (SeatCell cell : cells) {
+                String seatGender = resolveSeatGender(cell, config);
+                if (!StringUtils.hasText(seatGender) && StringUtils.hasText(config.getGenderType())) {
+                    String normalized = config.getGenderType().trim().toUpperCase(Locale.ROOT);
+                    if (normalized.startsWith("F")) {
+                        seatGender = "F";
+                    } else if (normalized.startsWith("M")) {
+                        seatGender = "M";
+                    }
+                }
+                if ("F".equalsIgnoreCase(seatGender)) {
+                    femaleCells.add(cell);
+                } else if ("M".equalsIgnoreCase(seatGender)) {
+                    maleCells.add(cell);
+                } else {
+                    warnings.add("座位区未标明性别，默认放入女区，section=" + sectionName);
+                    femaleCells.add(cell);
+                }
+            }
+
+            allocateBySection(seats, maleCells, "M", maleOldQueue, femaleOldQueue, maleNewQueue, femaleNewQueue, sessionId, config, warnings,
+                    maleOldQueue.size(), maleNewQueue.size());
+            allocateBySection(seats, femaleCells, "F", maleOldQueue, femaleOldQueue, maleNewQueue, femaleNewQueue, sessionId, config, warnings,
+                    femaleOldQueue.size(), femaleNewQueue.size());
+        }
+
+        addRemaining(femaleOldQueue, unassigned);
+        addRemaining(maleOldQueue, unassigned);
+        addRemaining(femaleNewQueue, unassigned);
+        addRemaining(maleNewQueue, unassigned);
 
         if (!unassigned.isEmpty()) {
             warnings.add("禅堂容量不足，未分配" + unassigned.size() + "人");
@@ -171,9 +182,14 @@ public class SeatAllocator {
 
     private void sortOldStudents(List<Student> oldStudents) {
         oldStudents.sort((a, b) -> {
+            boolean aMonk = a.isMonk();
+            boolean bMonk = b.isMonk();
+            if (aMonk != bMonk) {
+                return aMonk ? -1 : 1;
+            }
             int experienceDiff = Integer.compare(
-                    safeInt(b.getTotalCourseTimes()),
-                    safeInt(a.getTotalCourseTimes())
+                    safeInt(b.getStudyTimes()),
+                    safeInt(a.getStudyTimes())
             );
             if (experienceDiff != 0) {
                 return experienceDiff;
@@ -186,13 +202,13 @@ public class SeatAllocator {
         newStudents.sort((a, b) -> Integer.compare(safeInt(b.getAge()), safeInt(a.getAge())));
     }
 
-    private Student nextIfAvailable(Iterator<Student> iterator) {
-        return iterator != null && iterator.hasNext() ? iterator.next() : null;
+    private Student nextIfAvailable(Deque<Student> deque) {
+        return deque != null ? deque.pollFirst() : null;
     }
 
     private Student pickOldStudent(String seatGender,
-                                   Iterator<Student> maleOldIterator,
-                                   Iterator<Student> femaleOldIterator) {
+                                   Deque<Student> maleOldIterator,
+                                   Deque<Student> femaleOldIterator) {
         if ("F".equalsIgnoreCase(seatGender)) {
             return nextIfAvailable(femaleOldIterator);
         }
@@ -207,8 +223,8 @@ public class SeatAllocator {
     }
 
     private Student pickNewStudent(String seatGender,
-                                   Iterator<Student> maleNewIterator,
-                                   Iterator<Student> femaleNewIterator) {
+                                   Deque<Student> maleNewIterator,
+                                   Deque<Student> femaleNewIterator) {
         if ("F".equalsIgnoreCase(seatGender)) {
             return nextIfAvailable(femaleNewIterator);
         }
@@ -223,10 +239,10 @@ public class SeatAllocator {
     }
 
     private Student pickMixedStudent(String seatGender,
-                                     Iterator<Student> maleOldIterator,
-                                     Iterator<Student> femaleOldIterator,
-                                     Iterator<Student> maleNewIterator,
-                                     Iterator<Student> femaleNewIterator) {
+                                     Deque<Student> maleOldIterator,
+                                     Deque<Student> femaleOldIterator,
+                                     Deque<Student> maleNewIterator,
+                                     Deque<Student> femaleNewIterator) {
         if ("F".equalsIgnoreCase(seatGender)) {
             Student target = nextIfAvailable(femaleOldIterator);
             if (target != null) {
@@ -291,69 +307,189 @@ public class SeatAllocator {
     private void allocateBySection(List<MeditationSeat> seats,
                                    List<SeatCell> sectionCells,
                                    String genderCode,
-                                   Iterator<Student> maleOldIterator,
-                                   Iterator<Student> femaleOldIterator,
-                                   Iterator<Student> maleNewIterator,
-                                   Iterator<Student> femaleNewIterator,
+                                   Deque<Student> maleOldIterator,
+                                   Deque<Student> femaleOldIterator,
+                                   Deque<Student> maleNewIterator,
+                                   Deque<Student> femaleNewIterator,
                                    Long sessionId,
-                                   MeditationHallConfig config) {
+                                   MeditationHallConfig config,
+                                   List<String> warnings,
+                                   int oldCount,
+                                   int newCount) {
         if (sectionCells.isEmpty()) {
             return;
         }
-        // 行号升序（rowIndex 越小越靠近法座，前端反转渲染），行内列升序填旧生
-        Comparator<SeatCell> rowAscColAsc = Comparator
-                .comparingInt(SeatCell::getRow)
-                .thenComparingInt(SeatCell::getCol);
-        // 新生：为了减少空洞，改为行号升序、列升序，优先填靠近法座且从左到右，剩余空位留在远处
-        Comparator<SeatCell> newFillOrder = rowAscColAsc;
 
-        List<SeatCell> sorted = new ArrayList<>(sectionCells);
-        sorted.sort(rowAscColAsc);
+        // 计算区域行列范围（矩阵仅用于相对坐标归一化，容量以实际可坐格子数计算，避免通道/洞造成虚假空位）
+        int minRow = sectionCells.stream().mapToInt(SeatCell::getRow).min().orElse(0);
+        int maxRow = sectionCells.stream().mapToInt(SeatCell::getRow).max().orElse(0);
+        int minCol = sectionCells.stream().mapToInt(SeatCell::getCol).min().orElse(0);
+        int maxCol = sectionCells.stream().mapToInt(SeatCell::getCol).max().orElse(0);
+        int rows = maxRow - minRow + 1;
+        int cols = maxCol - minCol + 1;
+        int capacity = sectionCells.size(); // 按实际可坐的格子数计算容量，避免矩形空洞
 
-        // 旧生
-        for (SeatCell cell : sorted) {
+        // 容量警告
+        int totalNeed = oldCount + newCount;
+        if (totalNeed > capacity) {
+            warnings.add("禅堂区域 " + genderCode + " 超出容量，最多 " + capacity + "，待分配 " + totalNeed);
+        }
+
+        // 将 cell 映射为矩阵，按 purpose 分类
+        SeatCell[][] grid = new SeatCell[rows][cols];
+        for (SeatCell cell : sectionCells) {
+            int r = cell.getRow() - minRow;
+            int c = cell.getCol() - minCol;
+            grid[r][c] = cell;
+        }
+
+        Set<String> occupied = new HashSet<>();
+        boolean oldExhausted = false;
+        int lastOldRow = -1;
+        int exhaustRow = -1;
+
+        // 1) 旧生优先放 OLD_STUDENT 专区（若存在）
+        List<SeatCell> oldPreferred = new ArrayList<>();
+        for (SeatCell cell : sectionCells) {
+            if (cell.getPurpose() == SeatSectionPurpose.OLD_STUDENT && !cell.isReserved()) {
+                oldPreferred.add(cell);
+            }
+        }
+        oldPreferred.sort(Comparator.comparingInt(SeatCell::getRow).thenComparingInt(SeatCell::getCol));
+        for (SeatCell cell : oldPreferred) {
             Student target = pickOldStudent(genderCode, maleOldIterator, femaleOldIterator);
             if (target == null) {
-                continue;
+                oldExhausted = true;
+                break;
             }
             seats.add(buildSeat(sessionId, config, cell, target, resolveRegionCode(cell, config), genderCode));
+            occupied.add(seatKey(cell));
+            lastOldRow = Math.max(lastOldRow, cell.getRow() - minRow);
         }
 
-        // 新生：找未占用的 cell，按列右->左竖列
-        List<SeatCell> remaining = new ArrayList<>();
-        for (SeatCell cell : sectionCells) {
-            boolean occupied = seats.stream().anyMatch(s -> s.getRowIndex() == cell.getRow() && s.getColIndex() == cell.getCol());
-            if (!occupied) {
-                remaining.add(cell);
+        // 2) 旧生前两行 row-major（跳过保留/占用）
+        for (int r = 0; r < Math.min(2, rows); r++) {
+            if (oldExhausted) {
+                break;
+            }
+            for (int c = 0; c < cols; c++) {
+                SeatCell cell = grid[r][c];
+                if (cell == null || cell.isReserved() || occupied.contains(seatKey(cell))) {
+                    continue;
+                }
+                Student target = pickOldStudent(genderCode, maleOldIterator, femaleOldIterator);
+                if (target == null) {
+                    oldExhausted = true;
+                    exhaustRow = r;
+                    break;
+                }
+                seats.add(buildSeat(sessionId, config, cell, target, resolveRegionCode(cell, config), genderCode));
+                occupied.add(seatKey(cell));
+                lastOldRow = Math.max(lastOldRow, r);
             }
         }
-        remaining.sort(newFillOrder);
-        for (SeatCell cell : remaining) {
-            Student target = pickNewStudent(genderCode, maleNewIterator, femaleNewIterator);
+
+        // 3) 旧生继续填，行优先，从第3行起，但保留最后一行给尾部
+        for (int r = 2; r < rows - 1 && !oldExhausted; r++) { // rows-1 为最后一行预留
+            for (int c = 0; c < cols; c++) {
+                SeatCell cell = grid[r][c];
+                if (cell == null || cell.isReserved() || occupied.contains(seatKey(cell))) {
+                    continue;
+                }
+                Student target = pickOldStudent(genderCode, maleOldIterator, femaleOldIterator);
+                if (target == null) {
+                    oldExhausted = true;
+                    exhaustRow = r;
+                    break;
+                }
+                seats.add(buildSeat(sessionId, config, cell, target, resolveRegionCode(cell, config), genderCode));
+                occupied.add(seatKey(cell));
+                lastOldRow = Math.max(lastOldRow, r);
+            }
+        }
+
+        int mandatoryOldRows = lastOldRow >= 0 ? Math.min(2, rows) : 0;
+        int computedOldRows = lastOldRow + 1;
+        int oldRowsFilled = Math.max(mandatoryOldRows, computedOldRows);
+
+        // 3.5) 如果旧生在某行中途耗尽，先用新生补这一行的剩余列（从右到左），保证行内不留空
+        if (exhaustRow >= 0 && exhaustRow < rows - 1) {
+            for (int c = cols - 1; c >= 0; c--) {
+                SeatCell cell = grid[exhaustRow][c];
+                if (cell == null || cell.isReserved() || occupied.contains(seatKey(cell))) {
+                    continue;
+                }
+                if (cell.getPurpose() == SeatSectionPurpose.OLD_STUDENT) {
+                    continue;
+                }
+                Student target = pickNewStudent(genderCode, maleNewIterator, femaleNewIterator);
+                if (target == null) {
+                    break;
+                }
+                seats.add(buildSeat(sessionId, config, cell, target, resolveRegionCode(cell, config), genderCode));
+                occupied.add(seatKey(cell));
+            }
+        }
+
+        // 4) 新生竖列：起始行为 oldRowsFilled，列从右到左，行从上到下（到 rows-2），填满每列再换列
+        int startRow = Math.min(rows - 1, Math.max(0, oldRowsFilled));
+        for (int c = cols - 1; c >= 0; c--) {
+            for (int r = startRow; r < rows - 1; r++) { // 保留最后一行
+                SeatCell cell = grid[r][c];
+                if (cell == null || cell.isReserved() || occupied.contains(seatKey(cell))) {
+                    continue;
+                }
+                if (cell.getPurpose() == SeatSectionPurpose.OLD_STUDENT) {
+                    continue;
+                }
+                Student target = pickNewStudent(genderCode, maleNewIterator, femaleNewIterator);
+                if (target == null) {
+                    break;
+                }
+                seats.add(buildSeat(sessionId, config, cell, target, resolveRegionCode(cell, config), genderCode));
+                occupied.add(seatKey(cell));
+            }
+        }
+
+        // 5) 最后一行按行填剩余的旧/新生（允许留空位）
+        int lastRow = rows - 1;
+        for (int c = 0; c < cols; c++) {
+            SeatCell cell = grid[lastRow][c];
+            if (cell == null || cell.isReserved() || occupied.contains(seatKey(cell))) {
+                continue;
+            }
+            Student target = pickOldStudent(genderCode, maleOldIterator, femaleOldIterator);
             if (target == null) {
-                continue;
+                target = pickNewStudent(genderCode, maleNewIterator, femaleNewIterator);
+            }
+            if (target == null) {
+                continue; // 最后一行允许留空
             }
             seats.add(buildSeat(sessionId, config, cell, target, resolveRegionCode(cell, config), genderCode));
+            occupied.add(seatKey(cell));
         }
 
-        // 为本区未填充的 cell 生成空座位，便于前端展示和手动分配
-        fillEmptySeats(seats, sectionCells, sessionId, config, genderCode);
+        // 6) 剩余空位补空座
+        fillEmptySeats(seats, sectionCells, sessionId, config, genderCode, occupied);
     }
 
     private void fillEmptySeats(List<MeditationSeat> seats,
                                 List<SeatCell> sectionCells,
                                 Long sessionId,
                                 MeditationHallConfig config,
-                                String genderCode) {
+                                String genderCode,
+                                Set<String> occupiedKeys) {
         for (SeatCell cell : sectionCells) {
-            boolean occupied = seats.stream()
-                    .anyMatch(s -> Objects.equals(s.getRowIndex(), cell.getRow())
-                            && Objects.equals(s.getColIndex(), cell.getCol()));
-            if (occupied) {
+            if (cell.isReserved() || occupiedKeys.contains(seatKey(cell))) {
                 continue;
             }
             seats.add(buildSeat(sessionId, config, cell, null, resolveRegionCode(cell, config), genderCode));
+            occupiedKeys.add(seatKey(cell));
         }
+    }
+
+    private String seatKey(SeatCell cell) {
+        return cell.getRow() + ":" + cell.getCol();
     }
 
     private String resolveRegionCode(SeatCell cell, MeditationHallConfig config) {
@@ -391,9 +527,10 @@ public class SeatAllocator {
         return "new_student";
     }
 
-    private void addRemaining(Iterator<Student> iterator, List<Student> target) {
-        while (iterator.hasNext()) {
-            target.add(iterator.next());
+    private void addRemaining(Deque<Student> deque, List<Student> target) {
+        Student next;
+        while ((next = nextIfAvailable(deque)) != null) {
+            target.add(next);
         }
     }
 

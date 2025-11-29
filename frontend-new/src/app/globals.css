@@ -18,6 +18,98 @@ body {
   gap: 12px;
 }
 
+.seat-print-page {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+}
+
+.seat-print-header,
+.seat-print-region-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.seat-print-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.seat-print-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.seat-print-meta {
+  display: flex;
+  gap: 10px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.seat-print-gender-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.seat-print-region {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px 12px 12px;
+}
+
+.seat-print-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  transform: scale(var(--print-scale, 1));
+  transform-origin: top center;
+}
+
+.seat-print-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.seat-print-row-label {
+  width: 48px;
+  text-align: right;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.seat-print-row--placeholder .seat-print-row-label {
+  color: #e5e7eb;
+}
+
+.seat-print-row-cells {
+  display: flex;
+  gap: 6px;
+}
+
+.print-placeholder {
+  width: 86px;
+  height: 98px;
+  border: 1px dashed #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.print-hide-placeholder {
+  visibility: hidden;
+}
+
 .seat-card {
   transition: box-shadow 0.2s ease, transform 0.2s ease, border 0.2s ease;
 }
@@ -55,21 +147,9 @@ body {
     display: none !important;
   }
 
-  /* 布局调整：上下堆叠 */
   .main-container {
     display: block !important;
     width: 100% !important;
-  }
-
-  /* 分区分页 */
-  .section-b {
-    width: 100% !important;
-    page-break-after: always;
-    margin-bottom: 0 !important;
-  }
-  .section-a {
-    width: 100% !important;
-    margin-top: 20mm;
   }
 
   /* 卡片样式（打印清晰） */
@@ -86,6 +166,29 @@ body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     color: #fff !important;
+  }
+
+  .seat-print-page {
+    page-break-after: always;
+    box-shadow: none;
+    border: none;
+    padding: 10mm;
+  }
+  .seat-print-page:last-child {
+    page-break-after: auto;
+  }
+  .seat-print-region {
+    background: #fff;
+    border: 1px solid #d1d5db;
+  }
+  .seat-print-grid {
+    --print-scale: 0.88;
+  }
+  .print-placeholder {
+    visibility: hidden;
+  }
+  .seat-print-grid .print-hide-empty {
+    visibility: hidden !important; /* 保留占位，避免列收缩导致错位 */
   }
   /* --- 打印专用样式结束 --- */
 }
